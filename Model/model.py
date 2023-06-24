@@ -5,6 +5,7 @@ import numpy as np
 
 
 class I_Filter:
+    #TODO
     pass
 
 class O_Filter:
@@ -12,12 +13,13 @@ class O_Filter:
         self.out_features = out_features
 
     def check_overlay(self, time, free_time_slots):
+        #TODO
         return True
 
 
 class SC_LSTM(nn.Module):
 
-    def __init__(self, in_features, out_features, layers, device='cpu', dtype=None):
+    def __init__(self, in_features, out_features, layers, batch_size=1, device='cpu', dtype=None):
 
         factory_kwargs = {'device': device, 'dtype': dtype}
 
@@ -27,14 +29,16 @@ class SC_LSTM(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.layers = layers
-        self.hn = 0         # LSTM intermediate result
-        self.cn = 0         # LSTM intermediate result
+        self.batch_size = batch_size
+        self.hn = torch.zeros(layers, batch_size, out_features)         # LSTM intermediate result
+        self.cn = torch.zeros(layers, batch_size, out_features)          # LSTM intermediate result
 
         # Objects declaration
         self.i_f = I_Filter()
         self.o_f = O_Filter(out_features)
         self.lstm = nn.LSTM(in_features, out_features, layers, batch_first=True)
         self.activation = nn.Linear(out_features, layers)
+
 
     def forward(self, x, free_time_slots):
         #TODO: check x for input filtration
@@ -50,10 +54,10 @@ class SC_LSTM(nn.Module):
                 self.cn = cn_new
                 return out
 
-
-
-
-
+            else:
+                if not self.training:
+                    #TODO: remove or deatach the last block during inference
+                    pass
 
 
 
