@@ -7,3 +7,12 @@ class GetBasicInfo(StatesGroup):
 
 class BaseState(StatesGroup):
     Unit = State()
+
+
+class GetTaskInfo(StatesGroup):
+    TaskNameState = State()
+    TaskDurationState = State()
+    TaskImportanceState = State()
+    TaskComplexityState = State()
+    TaskStartTimeState = State()
+    TaskDateState = State()
