@@ -16,3 +16,7 @@ class GetTaskInfo(StatesGroup):
     TaskComplexityState = State()
     TaskStartTimeState = State()
     TaskDateState = State()
+
+
+class GetEventInfo(StatesGroup):
+    SpecificInput = State()

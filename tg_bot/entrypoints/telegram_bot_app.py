@@ -4,7 +4,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 
-from states.states import GetBasicInfo, BaseState, GetTaskInfo
+from states.states import GetBasicInfo, BaseState, GetTaskInfo, GetEventInfo
 from lexicon.lexicon import lexicon
 from utils.utils import (
     start_end_of_day_time,
@@ -13,6 +13,7 @@ from utils.utils import (
     parse_time,
     parse_date,
     get_task,
+    parse_event,
 )
 from domain.domain import Task
 
@@ -199,9 +200,29 @@ async def get_task_start_time(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["write_success"])
 
 
-@dp.message_handler(commands=["add_event"])
-async def add_event(message: Message):
-    pass
+@dp.message_handler(state="*", commands=["add_event"])
+async def add_event(message: Message, state: FSMContext):
+    message_text = message.text
+    await state.set_state(GetEventInfo.SpecificInput)
+    await message.answer(lexicon["en"]["add_event"])
+
+
+@dp.message_handler(state=GetEventInfo.SpecificInput)
+async def get_event_in_specific_format(message: Message, state: FSMContext):
+    message_text = message.text
+
+    result = parse_event(message_text)
+
+    if result is None:
+        """Please retry"""
+        await message.answer(lexicon["en"]["retry_event"])
+        return
+
+    async with state.proxy() as data:
+        data["last_event"] = result
+
+    await state.finish()
+    await message.answer(lexicon["en"]["write_success"])
 
 
 @dp.message_handler(commands=["mark_history"])
