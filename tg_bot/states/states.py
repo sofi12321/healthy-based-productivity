@@ -20,3 +20,11 @@ class GetTaskInfo(StatesGroup):
 
 class GetEventInfo(StatesGroup):
     SpecificInput = State()
+
+
+class MarkHistory(StatesGroup):
+    ChooseTask = State()
+    MarkingHistory = State()
+
+
+UnitState = State()
