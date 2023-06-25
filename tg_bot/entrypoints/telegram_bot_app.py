@@ -1,10 +1,17 @@
 from aiogram import Bot, Dispatcher
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 
-from states.states import GetBasicInfo, BaseState, GetTaskInfo, GetEventInfo
+from states.states import (
+    GetBasicInfo,
+    BaseState,
+    GetTaskInfo,
+    GetEventInfo,
+    MarkHistory,
+    UnitState,
+)
 from lexicon.lexicon import lexicon
 from utils.utils import (
     start_end_of_day_time,
@@ -14,7 +21,9 @@ from utils.utils import (
     parse_date,
     get_task,
     parse_event,
+    parse_marking_history,
 )
+from keyboards.keyboards import get_active_tasks_keyboard
 from domain.domain import Task
 
 import os
@@ -58,7 +67,7 @@ async def get_start_end_day(message: Message, state: FSMContext):
         data["start_time"] = times[0]
         data["end_time"] = times[1]
 
-    await state.finish()
+    await state.set_state(UnitState)
     await message.answer(lexicon["en"]["write_success"])
 
 
@@ -90,6 +99,8 @@ async def get_task_name(message: Message, state: FSMContext):
                 date=date,
             )
             data["last_task"] = task
+            print(data)
+        await state.set_state(UnitState)
         await message.answer(lexicon["en"]["write_success"])
         return
 
@@ -181,7 +192,7 @@ async def get_task_start_time(message: Message, state: FSMContext):
     if message_text == "no":
         async with state.proxy() as data:
             data["last_task"] = get_task(data)
-        await state.finish()
+        await state.set_state(UnitState)
         await message.answer(lexicon["en"]["write_success"])
         return
 
@@ -194,9 +205,9 @@ async def get_task_start_time(message: Message, state: FSMContext):
 
     async with state.proxy() as data:
         data["task_date"] = result
-        data["last_date"] = get_task(data)
+        data["last_task"] = get_task(data)
 
-    await state.finish()
+    await state.set_state(UnitState)
     await message.answer(lexicon["en"]["write_success"])
 
 
@@ -221,10 +232,59 @@ async def get_event_in_specific_format(message: Message, state: FSMContext):
     async with state.proxy() as data:
         data["last_event"] = result
 
-    await state.finish()
+    await state.set_state(UnitState)
     await message.answer(lexicon["en"]["write_success"])
 
 
 @dp.message_handler(commands=["mark_history"])
-async def mark_history(message: Message):
-    pass
+async def mark_history(message: Message, state: FSMContext):
+    message_text = message.text
+
+    await state.set_state(MarkHistory.ChooseTask)
+
+    async with state.proxy() as data:
+        keyboard = await get_active_tasks_keyboard([data.get("last_task")])
+        await message.answer(lexicon["en"]["mark_history"], reply_markup=keyboard)
+
+
+@dp.callback_query_handler(
+    lambda c: "task_" in c.data, state=MarkHistory.ChooseTask
+)
+async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext):
+    message_text: str = callback_query.message.text
+    async with state.proxy() as data:
+        task = data.get("last_task")
+        if task is None:
+            await callback_query.answer("No tasks")
+        else:
+            await callback_query.message.answer(
+                f"""Task:
+                Task name: {task.task_name}\t
+                Task duration: {task.duration}\t
+                Task importance: {task.importance}\t
+                Task complexity: {task.complexity}\t
+                Task start time: {task.start_time or "No time"}\t
+                Task date: {task.date or "No date"}\n""")
+            await callback_query.message.answer(lexicon['en']['ask_history'])
+
+    await state.set_state(MarkHistory.MarkingHistory)
+
+    async with state.proxy() as data:
+        data["marking_id"] = callback_query.data
+
+
+@dp.message_handler(state=MarkHistory.MarkingHistory)
+async def marking_history(message: Message, state: FSMContext):
+    message_text = message.text
+
+    result = parse_marking_history(message_text)
+
+    if result is None:
+        await message.answer(lexicon["en"]["retry_history"])
+        return
+
+    async with state.proxy() as data:
+        data[f"marked_history_{data.get('marking_id')}"] = result
+
+    await state.set_state(UnitState)
+    await message.answer(lexicon["en"]["write_success"])

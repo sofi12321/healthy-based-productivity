@@ -22,6 +22,9 @@ EventTuple: TypeAlias = Tuple[
     EventName, StartTime, Duration, Optional[EventRepeatArguments]
 ]
 
+# Mark History
+IsDone: TypeAlias = bool
+
 
 def parse_int(int_str: str) -> Optional[int]:
     if not isinstance(int_str, str):
@@ -214,3 +217,47 @@ def parse_event(event_str: str) -> Optional[Event]:
         duration=duration,
         repeat_arguments=repeat_argument,
     )
+
+
+def parse_bool(bool_str: str) -> Optional[bool]:
+    if not isinstance(bool_str, str):
+        logging.warning("Got unexpected type")
+        return None
+
+    bool_str = bool_str.strip().lower()
+
+    if bool_str == "true":
+        return True
+
+    if bool_str == "false":
+        return False
+
+    return None
+
+
+def parse_marking_history(
+    mark_history_str: str,
+) -> Optional[Tuple[StartTime, EndTime, IsDone]]:
+    if not isinstance(mark_history_str, str):
+        logging.warning("Got unexpected type")
+        return None
+
+    mark_history_split = mark_history_str.split("-")
+
+    if len(mark_history_split) != 3:
+        logging.warning("Got unexpected number of arguments")
+        return None
+
+    start_time_str, end_time_str, is_done_str = mark_history_split
+
+    start_time, end_time, is_done = (
+        parse_time(start_time_str),
+        parse_time(end_time_str),
+        parse_bool(is_done_str),
+    )
+
+    if None in [start_time, end_time, is_done]:
+        logging.warning("Wrong format of mark history")
+        return None
+
+    return start_time, end_time, is_done
