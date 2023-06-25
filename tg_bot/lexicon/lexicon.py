@@ -17,8 +17,11 @@ lexicon = {
         "get_importance_task": "Please, enter importance of task",
         "get_start_time_task": "Now, write time is the following format: \n\t13:00 or 1:00PM\nOr enter 'no' if no specific start time",
         "get_date_task": "Please, enter date in the following format: \n\tdd/mm/yyyy\nFor example, 1/1/1970\nOr enter 'no' if no specific date",
+        "add_event": """To add event, enter event in the following format:\n\t[event_name]-[start_time]-[duration (in minutes)]-[Number] [day | {day of week (e.g. Sunday)} | month] [Number of events]""",
+        # retries
         "retry_int": "Please, enter integer",
         "retry_optional_time": "Please, enter time in the specific following format: \n\t13:00 or 1:00PM\nOr enter 'no' if no specific start time",
         "retry_optional_date": "Please, enter date in the specific following format: \n\tdd/mm/yyyy\nFor example, 1/1/1970\nOr enter 'no' if no specific date",
+        "retry_event": """Please, enter event in the following format:\n\t[event_name]-[start_time]-[duration (in minutes)]-[Number] [day | {day of week (e.g. Sunday)} | month] [Number of events]""",
     }
 }

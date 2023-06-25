@@ -28,3 +28,11 @@ class Task:
 class BasicUserInfo:
     start_time: datetime.time
     end_time: datetime.time
+
+
+@dataclass
+class Event:
+    event_name: str
+    start_time: datetime.time
+    duration: int
+    repeat_arguments: Optional[str]

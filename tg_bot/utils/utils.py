@@ -1,7 +1,7 @@
 import datetime
 import logging
-from typing import TypeAlias
-from domain.domain import Task
+from typing import TypeAlias, Optional, Tuple
+from domain.domain import Task, Event
 
 # Task aliases
 TaskName: TypeAlias = str
@@ -14,8 +14,16 @@ Date: TypeAlias = datetime.date
 # Base info aliases
 EndTime: TypeAlias = datetime.time
 
+# Event alisases
+EventName: TypeAlias = str
+EventRepeatArguments: TypeAlias = str
 
-def parse_int(int_str: str) -> int or None:
+EventTuple: TypeAlias = Tuple[
+    EventName, StartTime, Duration, Optional[EventRepeatArguments]
+]
+
+
+def parse_int(int_str: str) -> Optional[int]:
     if not isinstance(int_str, str):
         logging.warning("Got unexpected type")
         return None
@@ -27,7 +35,7 @@ def parse_int(int_str: str) -> int or None:
     return int(int_str)
 
 
-def parse_date(date_str: str) -> Date or None:
+def parse_date(date_str: str) -> Optional[Date]:
     if not isinstance(date_str, str):
         logging.warning("Got unexpected type")
         return None
@@ -51,7 +59,7 @@ def parse_date(date_str: str) -> Date or None:
     return None
 
 
-def parse_time(time_str: str) -> datetime.time or None:
+def parse_time(time_str: str) -> Optional[datetime.time]:
     time_str = time_str.lower()
 
     if len(time_str.split(":")) != 2:
@@ -79,7 +87,7 @@ def parse_time(time_str: str) -> datetime.time or None:
     return datetime.time(hour=hours, minute=minutes)
 
 
-def start_end_of_day_time(time_str: str) -> (StartTime, EndTime) or None:
+def start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndTime]]:
     if not isinstance(time_str, str):
         logging.warning("Got non-string type in parse time function")
         return None
@@ -100,14 +108,16 @@ def start_end_of_day_time(time_str: str) -> (StartTime, EndTime) or None:
 
 def parse_task(
     task_str: str,
-) -> (
-    TaskName,
-    Duration,
-    Importance,
-    Complexity,
-    StartTime or None,
-    Date or None,
-) or None:
+) -> Optional[
+    Tuple[
+        TaskName,
+        Duration,
+        Importance,
+        Complexity,
+        Optional[StartTime],
+        Optional[Date],
+    ]
+]:
     if not isinstance(task_str, str):
         logging.warning("Got non-string type in parse task function")
         return None
@@ -153,7 +163,7 @@ def parse_task(
     return task_name, duration, importance, complexity, start_time, date
 
 
-def get_task(data: dict) -> Task or None:
+def get_task(data: dict) -> Optional[Task]:
     init_dict = {}
     params = ["task_name", "task_duration", "task_importance", "task_complexity"]
     optional_params = ["task_start_time", "task_date"]
@@ -173,3 +183,34 @@ def get_task(data: dict) -> Task or None:
     }
 
     return Task(**init_dict)
+
+
+def parse_event(event_str: str) -> Optional[Event]:
+    if not isinstance(event_str, str):
+        logging.warning("Got unexpected type")
+        return None
+
+    event_split = event_str.split("-")
+
+    if not (3 <= len(event_split) <= 4):
+        logging.warning("Got unexpected number of arguments")
+        return None
+
+    event_name, start_time_str, duration_str = event_split[:3]
+    repeat_argument = None
+
+    if len(event_split) == 4:
+        repeat_argument = event_split[3]
+
+    start_time, duration = parse_time(start_time_str), parse_int(duration_str)
+
+    if None in [start_time, duration]:
+        logging.warning("Wrong format of time or duration")
+        return None
+
+    return Event(
+        event_name=event_name,
+        start_time=start_time,
+        duration=duration,
+        repeat_arguments=repeat_argument,
+    )
