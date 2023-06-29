@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import TypeAlias, Optional, Tuple
+from typing import TypeAlias, Optional, Tuple, List
 from domain.domain import Task, Event
 
 # Task aliases
@@ -26,6 +26,26 @@ EventTuple: TypeAlias = Tuple[
 IsDone: TypeAlias = bool
 
 
+def day_of_week(day_str: str) -> Optional[int]:
+    if not isinstance(day_str, str):
+        logging.warning("Got unexpected type")
+        return None
+
+    day_str = day_str.strip().lower()
+
+    days_of_week = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ]
+
+    return days_of_week.index(day_str) if day_str in day_of_week else None
+
+
 def parse_int(int_str: str) -> Optional[int]:
     if not isinstance(int_str, str):
         logging.warning("Got unexpected type")
@@ -36,6 +56,147 @@ def parse_int(int_str: str) -> Optional[int]:
         return None
 
     return int(int_str)
+
+
+def parse_complexity(int_str: str) -> Optional[Complexity]:
+    result = parse_int(int_str)
+
+    if result is not None and 0 <= result <= 3:
+        return result
+
+    return None
+
+
+def parse_importance(int_str: str) -> Optional[Importance]:
+    result = parse_int(int_str)
+
+    if result is not None and 0 <= result <= 3:
+        return result
+
+    return None
+
+
+def get_next_date(
+    current_date: Optional[datetime.date], argument: str, each_number: int
+) -> Optional[datetime.date]:
+    if not (
+        (isinstance(current_date, datetime.date) or current_date is None)
+        and isinstance(argument, str)
+        and isinstance(each_number, int)
+    ):
+        logging.warning("Got unexpected arguments")
+        return None
+
+    argument = argument.strip().lower()
+
+    weekday = day_of_week(argument)
+
+    if argument not in ["day", "month", "week"] and weekday is None:
+        logging.warning("Wrong argument for getting next date")
+        return None
+
+    if weekday is not None:
+        if current_date is None:
+            current_date = datetime.date.today()
+
+        days_delta = weekday - current_date.weekday()
+        if days_delta < 0:
+            days_delta += 7
+
+        return_date = current_date + datetime.timedelta(days=days_delta)
+        return return_date
+
+    if argument == "day":
+        return current_date + datetime.timedelta(days=each_number)
+
+    if argument == "week":
+        return current_date + datetime.timedelta(days=7 * each_number)
+
+    if argument == "month":
+        new_month = current_date.month + 1
+        new_year = current_date.year
+        new_day = current_date.day
+
+        if new_month > 12:
+            new_month = 1
+            new_year += 1
+
+        try:
+            new_date = datetime.date(year=new_year, month=new_month, day=new_day)
+            return new_date
+        except ValueError:
+            return None
+
+
+def parse_repeated_arguments(
+    date: Optional[datetime.date], repeated_arguments: Tuple[str, str, str]
+) -> Optional[List[datetime.date]]:
+    if (date is not None and not isinstance(date, datetime.date)) or not isinstance(
+        tuple, repeated_arguments
+    ):
+        logging.warning("Got unexpected agruments")
+        return None
+
+    if len(repeated_arguments) != 3:
+        logging.warning("Wrong number of arguments for repeated arguments")
+        return None
+
+    each_number = parse_int(repeated_arguments[0])
+
+    if each_number is None or each_number < 1:
+        logging.warning("Wrong argument for first argument in repeated events")
+        return None
+
+    each_argument = repeated_arguments[1]
+
+    if not isinstance(repeated_arguments[1], str):
+        logging.warning("Wrong type of each argument")
+        return None
+
+    weekday_number = is_day_of_week(each_argument)
+
+    if not (weekday_number is not None or each_argument in ["day", "week", "month"]):
+        logging.warning("Wrong value of second argument in repeated events")
+        return None
+
+    number_of_repetitions = parse_int(repeated_arguments[2])
+
+    if number_of_repetitions is None:
+        logging.warning("Wrong argument for third argument in repeated events")
+
+    date_list = []
+
+    if date is not None:
+        if weekday_number is not None:
+            """
+            Checking for correspondance of weekday of date
+            and weekday of repeat arguments
+            """
+            if date.weekday() != weekday_number:
+                logging.warning("Date is not correspond to repeat arguments")
+                return None
+        date_list = [date]
+    else:
+        if weekday_number is not None:
+            date_list = [
+                get_next_date(datetime.date.today(), each_argument, each_number)
+            ]
+        else:
+            date_list = [datetime.date.today()]
+
+    for i in range(each_number - 1):
+        next_date = get_next_date(date_list[-1], each_argument, each_number)
+
+        number_of_trying = 1
+
+        while next_date is None and i != each_number - 1 - number_of_trying:
+            "In case of days in month less than days in date"
+            next_date = get_next_date(date_list[-1], each_argument, each_number + 1)
+            number_of_trying += 1
+
+        date_list.append(next_date)
+
+    return date_list
 
 
 def parse_date(date_str: str) -> Optional[Date]:
@@ -90,7 +251,7 @@ def parse_time(time_str: str) -> Optional[datetime.time]:
     return datetime.time(hour=hours, minute=minutes)
 
 
-def start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndTime]]:
+def parse_start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndTime]]:
     if not isinstance(time_str, str):
         logging.warning("Got non-string type in parse time function")
         return None
@@ -109,18 +270,7 @@ def start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndTime]]:
     return start_time, end_time
 
 
-def parse_task(
-    task_str: str,
-) -> Optional[
-    Tuple[
-        TaskName,
-        Duration,
-        Importance,
-        Complexity,
-        Optional[StartTime],
-        Optional[Date],
-    ]
-]:
+def parse_task(task_str: str, telegram_id: int) -> Optional[Task]:
     if not isinstance(task_str, str):
         logging.warning("Got non-string type in parse task function")
         return None
@@ -157,16 +307,21 @@ def parse_task(
         else:
             start_time = temp_time
 
-    duration, importance, complexity = map(
-        parse_int, [duration_str, importance_str, complexity_str]
+    duration, importance, complexity = (
+        parse_int(duration_str),
+        parse_importance(importance_str),
+        parse_complexity(complexity_str),
     )
+
     if None in [duration, importance, complexity]:
         return None
 
-    return task_name, duration, importance, complexity, start_time, date
+    return Task(
+        telegram_id, task_name, duration, importance, complexity, start_time, date
+    )
 
 
-def get_task(data: dict) -> Optional[Task]:
+def get_task(data: dict, telegram_id) -> Optional[Task]:
     init_dict = {}
     params = ["task_name", "task_duration", "task_importance", "task_complexity"]
     optional_params = ["task_start_time", "task_date"]
@@ -177,6 +332,7 @@ def get_task(data: dict) -> Optional[Task]:
             return None
 
     init_dict = {
+        "telegram_id": telegram_id,
         "task_name": data.get("task_name"),
         "duration": data.get("task_duration"),
         "importance": data.get("task_importance"),
@@ -188,7 +344,50 @@ def get_task(data: dict) -> Optional[Task]:
     return Task(**init_dict)
 
 
-def parse_event(event_str: str) -> Optional[Event]:
+def parse_event(
+    event_name: str,
+    start_time: datetime.time,
+    duration: int,
+    dates: Optional[datetime.date],
+) -> Optional[List[Event]]:
+    if (
+        not isinstance(event_name, str)
+        or not isinstance(start_time, datetime.time)
+        or not isinstance(duration, int)
+        or (dates is not None or not isinstance(dates))
+    ):
+        logging.warning("Wrong type of passed arguments")
+        return None
+
+    if duration < 1:
+        logging.warning("Wrong value for duration")
+        return None
+
+    if dates is None:
+        dates = [datetime.date.today()]
+
+    events = [
+        Event(
+            event_name=event_name,
+            repeat_number=i,
+            start_time=start_time,
+            duration=duration,
+            date=date_tmp,
+        )
+        for i, date_tmp in enumerate(dates)
+    ]
+
+    return events
+
+
+"""
+def parse_event_str(event_str: str) -> Optional[List[Event]]:
+    \"\"\"
+    parse event from string
+    string should be in the following format:
+        [event_name]-[start_time]-[duration]-[date]-[repeat_arguments]
+    \"\"\"
+
     if not isinstance(event_str, str):
         logging.warning("Got unexpected type")
         return None
@@ -217,6 +416,7 @@ def parse_event(event_str: str) -> Optional[Event]:
         duration=duration,
         repeat_arguments=repeat_argument,
     )
+"""
 
 
 def parse_bool(bool_str: str) -> Optional[bool]:
