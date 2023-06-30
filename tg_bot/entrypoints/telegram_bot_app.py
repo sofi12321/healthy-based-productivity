@@ -12,9 +12,9 @@ from states.states import (
     MarkHistory,
     UnitState,
 )
-from lexicon.lexicon import lexicon
+from lexicon.lexicon import lexicon, get_lexicon_with_argument
 from utils.utils import (
-    start_end_of_day_time,
+    parse_start_end_of_day_time,
     parse_task,
     parse_int,
     parse_time,
@@ -22,6 +22,9 @@ from utils.utils import (
     get_task,
     parse_event,
     parse_marking_history,
+    parse_repeated_arguments,
+    parse_int_in_range,
+    check_repeat_each_argument,
 )
 from keyboards.keyboards import get_active_tasks_keyboard
 from domain.domain import Task
@@ -57,7 +60,7 @@ async def process_start_command(message: Message, state: FSMContext):
 @dp.message_handler(state=GetBasicInfo.StartEndOfDay)
 async def get_start_end_day(message: Message, state: FSMContext):
     message_text = message.text
-    times = start_end_of_day_time(message_text)
+    times = parse_start_end_of_day_time(message_text)
 
     if times is None:
         await message.reply(lexicon["en"]["retry_first_hello"])
@@ -214,26 +217,172 @@ async def get_task_start_time(message: Message, state: FSMContext):
 @dp.message_handler(state="*", commands=["add_event"])
 async def add_event(message: Message, state: FSMContext):
     message_text = message.text
-    await state.set_state(GetEventInfo.SpecificInput)
+    await state.set_state(GetEventInfo.EventNameState)
     await message.answer(lexicon["en"]["add_event"])
 
 
-@dp.message_handler(state=GetEventInfo.SpecificInput)
-async def get_event_in_specific_format(message: Message, state: FSMContext):
+@dp.message_handler(state=GetEventInfo.EventNameState)
+async def get_event_name(message: Message, state: FSMContext):
     message_text = message.text
 
-    result = parse_event(message_text)
+    async with state.proxy() as data:
+        data["event_name"] = message_text
+
+    await state.set_state(GetEventInfo.EventStartTimeState)
+    await message.answer(lexicon["en"]["event_start_time"])
+
+
+@dp.message_handler(state=GetEventInfo.EventStartTimeState)
+async def get_event_start_time(message: Message, state: FSMContext):
+    message_text = message.text
+
+    result = parse_time(message_text)
 
     if result is None:
         """Please retry"""
-        await message.answer(lexicon["en"]["retry_event"])
+        await message.answer(lexicon["en"]["retry_time"])
         return
 
     async with state.proxy() as data:
-        data["last_event"] = result
+        data["event_start_time"] = result
 
-    await state.set_state(UnitState)
+    await state.set_state(state=GetEventInfo.EventDurationState)
+    await message.answer(lexicon["en"]["event_duration"])
+
+
+@dp.message_handler(state=GetEventInfo.EventDurationState)
+async def get_event_duration(message: Message, state: FSMContext):
+    message_text = message.text
+    result = parse_int_in_range(message_text, start_range=1, end_range=24 * 60)
+
+    if result is None:
+        """Please retry"""
+        await message.answer(lexicon['en']['retry_int'])
+        return
+
+    async with state.proxy() as data:
+        data['event_duration'] = result
+
+    await state.set_state(GetEventInfo.EventDateState)
+    await message.answer(lexicon['en']['event_date'])
+
+
+@dp.message_handler(state=GetEventInfo.EventDateState)
+async def get_event_date(message: Message, state: FSMContext):
+    message_text = message.text
+    message_text = message_text.strip()
+
+    if message_text.lower() != "no":
+        result = parse_date(message_text)
+
+        if result is None:
+            """Please retry"""
+            await message.answer(lexicon["en"]["retry_optional_date"])
+            return
+
+        async with state.proxy() as data:
+            data["event_date"] = result
+
+    await state.set_state(state=GetEventInfo.EventRepeatEachNumberState)
+    await message.answer(lexicon["en"]["event_repeat_each_number"])
+
+
+@dp.message_handler(state=GetEventInfo.EventRepeatEachNumberState)
+async def get_event_repeat_each_number(message: Message, state: FSMContext):
+    message_text = message.text
+    message_text = message_text.strip()
+
+    if message_text.lower() == "no":
+        """TODO: Get event, write event to db"""
+        await message.answer(lexicon["en"]["write_success"])
+        await state.finish()
+        return
+
+    result = parse_int_in_range(message_text, start_range=1, end_range=15)
+
+    if result is None:
+        """Please retry"""
+        await message.answer(lexicon["en"]["retry_int"])
+        return
+
+    async with state.proxy() as data:
+        data["event_each_number"] = result
+
+    await state.set_state(state=GetEventInfo.EventRepeatEachArgumentState)
+    await message.answer(lexicon["en"]["event_repeat_each_argument"])
+
+
+@dp.message_handler(state=GetEventInfo.EventRepeatEachArgumentState)
+async def get_event_repeat_each_arguments(message: Message, state: FSMContext):
+    message_text = message.text
+    message_text = message_text.strip().lower()
+
+    if not check_repeat_each_argument(message_text):
+        """Please retry, TODO"""
+        await message.answer(lexicon["en"]["event_repeat_each_argument"])
+        return
+
+    async with state.proxy() as data:
+        data["event_each_argument"] = message_text
+
+    await state.set_state(GetEventInfo.EventRepeatNumberOfRepetitions)
+    await message.answer(lexicon["en"]["event_repeat_number_of_repetitions"])
+
+
+@dp.message_handler(state=GetEventInfo.EventRepeatNumberOfRepetitions)
+async def get_event_repeat_each_number(message: Message, state: FSMContext):
+    message_text = message.text
+
+    result = parse_int_in_range(message_text, start_range=1, end_range=15)
+
+    if result is None:
+        """Please retry"""
+        await message.answer(lexicon["en"]["retry_int"])
+        return
+
+    async with state.proxy() as data:
+        dates = parse_repeated_arguments(
+            data.get("event_date"),
+            tuple(
+                [data.get("event_each_number"), data.get("event_each_argument"), result]
+            ),
+        )
+
+        if dates is None:
+            logging.error(
+                get_lexicon_with_argument(
+                    "error", f"Could not parse dates: \n\t{data.as_dict()}\n\t{result}"
+                )
+            )
+            await message.answer(lexicon["en"]["retry_trouble"])
+            await state.finish()
+            return
+
+        print("Dates:", dates)
+
+        events = parse_event(
+            event_name=data.get("event_name"),
+            start_time=data.get("event_start_time"),
+            duration=data.get("event_duration"),
+            dates=dates,
+        )
+
+        if events is None:
+            logging.error(
+                get_lexicon_with_argument(
+                    "error", f"Could not parse events: \n\t{dates},\n\t{data.as_dict()}"
+                )
+            )
+            await message.answer(lexicon["en"]["retry_trouble"])
+            await state.finish()
+            return
+
+    await state.finish()
     await message.answer(lexicon["en"]["write_success"])
+    """
+    TODO:
+        -add to sql database
+    """
 
 
 @dp.message_handler(commands=["mark_history"])
@@ -247,9 +396,7 @@ async def mark_history(message: Message, state: FSMContext):
         await message.answer(lexicon["en"]["mark_history"], reply_markup=keyboard)
 
 
-@dp.callback_query_handler(
-    lambda c: "task_" in c.data, state=MarkHistory.ChooseTask
-)
+@dp.callback_query_handler(lambda c: "task_" in c.data, state=MarkHistory.ChooseTask)
 async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext):
     message_text: str = callback_query.message.text
     async with state.proxy() as data:
@@ -264,8 +411,9 @@ async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext)
                 Task importance: {task.importance}\t
                 Task complexity: {task.complexity}\t
                 Task start time: {task.start_time or "No time"}\t
-                Task date: {task.date or "No date"}\n""")
-            await callback_query.message.answer(lexicon['en']['ask_history'])
+                Task date: {task.date or "No date"}\n"""
+            )
+            await callback_query.message.answer(lexicon["en"]["ask_history"])
 
     await state.set_state(MarkHistory.MarkingHistory)
 

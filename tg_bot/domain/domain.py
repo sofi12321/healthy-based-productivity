@@ -30,8 +30,8 @@ class BasicUserInfo:
 @dataclass
 class Event:
     event_id: Optional[int]
-    repeat_number: int = 0
     event_name: str
     start_time: datetime.time
     duration: int
     date: datetime.date = datetime.date.today()
+    repeat_number: int = 0

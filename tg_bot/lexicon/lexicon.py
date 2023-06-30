@@ -1,3 +1,6 @@
+from typing import Optional
+import logging
+
 lexicon = {
     "en": {
         "first_hello": "Hello, I am scheduler bot that will help "
@@ -24,8 +27,13 @@ lexicon = {
         dd/mm/yyyy\n
         For example, 1/1/1970\n
         Or enter 'no' if no specific date""",
-        "add_event": """To add event, enter event in the following format:\n\t
-        [event_name]-[start_time]-[duration (in minutes)]-[Number] [day | {day of week (e.g. Sunday)} | month] [Number of events]""",
+        "add_event": """To add event, please, enter event name""",
+        "event_start_time": "Now, please, enter start time of event",
+        "event_duration": f"Please, enter duration of the event up to {24 * 60}",
+        "event_date": "Please, enter date of event. If no specific date, enter 'no'",
+        "event_repeat_each_number": "Please, enter each number",
+        "event_repeat_each_argument": "Please, enter each argument",
+        "event_repeat_number_of_repetitions": "Please, enter number of repetitions",
         "mark_history": "Choose active task. If no task, make task using '/add_task'",
         "ask_history": """Please, enter history in the following format:\n\t
         [start_time]-[end_time]-[is_done (true or false)]""",
@@ -40,5 +48,24 @@ lexicon = {
         [event_name]-[start_time]-[duration (in minutes)]-[Number] [day | {day of week (e.g. Sunday)} | month] [Number of events]""",
         "retry_history": """Please, enter history in the following format:\n\t
         [start_time]-[end_time]-[is_done (true or false)]""",
+        "retry_time": """Please, enter time in the following format:\n\t
+        '11:00' or '1:00AM'""",
+        "retry_trouble": "Sorry, unexpected error. Please, try again",
+        "error": "Got unexpected error: \n\t{}",
     }
 }
+
+
+def get_lexicon_with_argument(message_args: str, *args) -> Optional[str]:
+    if not isinstance(message_args, str):
+        logging.error("Got unexpected type in lexicon")
+        return ""
+
+    if message_args not in lexicon["en"].keys():
+        logging.error("Got unexpected argument in lexicon: %s", message_args)
+        return ""
+
+    try:
+        return lexicon["en"][message_args].format(*args)
+    except IndexError:
+        return ""

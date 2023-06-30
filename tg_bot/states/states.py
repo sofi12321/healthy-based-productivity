@@ -19,7 +19,13 @@ class GetTaskInfo(StatesGroup):
 
 
 class GetEventInfo(StatesGroup):
-    SpecificInput = State()
+    EventNameState = State()
+    EventStartTimeState = State()
+    EventDurationState = State()
+    EventDateState = State()
+    EventRepeatEachNumberState = State()
+    EventRepeatEachArgumentState = State()
+    EventRepeatNumberOfRepetitions = State()
 
 
 class MarkHistory(StatesGroup):
