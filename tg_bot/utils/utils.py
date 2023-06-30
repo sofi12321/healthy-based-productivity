@@ -43,7 +43,17 @@ def day_of_week(day_str: str) -> Optional[int]:
         "sunday",
     ]
 
-    return days_of_week.index(day_str) if day_str in day_of_week else None
+    return days_of_week.index(day_str) if day_str in days_of_week else None
+
+
+def check_repeat_each_argument(repeat_argument: str) -> Optional[bool]:
+    if not isinstance(repeat_argument, str):
+        logging.warning("Got unexpected type")
+        return None
+
+    repeat_argument = repeat_argument.strip().lower()
+
+    return day_of_week(repeat_argument) is not None or repeat_argument in ['day', 'week', 'month']
 
 
 def parse_int(int_str: str) -> Optional[int]:
@@ -58,22 +68,48 @@ def parse_int(int_str: str) -> Optional[int]:
     return int(int_str)
 
 
+def parse_int_in_range(int_str: str, start_range: Optional[int], end_range: Optional[int]) -> Optional[int]:
+    """
+    Parse int in specific range (range boundaries are included in range)
+        start_range is None for no lower boundaries for int
+        end_range is None for no upper boundaries for int
+    """
+    return_int = parse_int(int_str)
+
+    if return_int is None:
+        return None
+
+    if not isinstance(start_range, int) and start_range is not None:
+        logging.warning("Got unexpected start range")
+        return None
+
+    if not isinstance(end_range, int) and end_range is not None:
+        logging.warning("Got unexpected end range")
+        return None
+
+    if start_range is not None and end_range is not None:
+        if start_range > end_range:
+            logging.warning("start range is more than end_range")
+            return None
+
+    if start_range is not None:
+        if return_int < start_range:
+            logging.warning("Given number is less than start range")
+            return None
+
+    if end_range is not None:
+        if return_int > end_range:
+            logging.warning("Given number is more than end range")
+
+    return return_int
+
+
 def parse_complexity(int_str: str) -> Optional[Complexity]:
-    result = parse_int(int_str)
-
-    if result is not None and 0 <= result <= 3:
-        return result
-
-    return None
+    return parse_int_in_range(int_str, start_range=0, end_range=3)
 
 
 def parse_importance(int_str: str) -> Optional[Importance]:
-    result = parse_int(int_str)
-
-    if result is not None and 0 <= result <= 3:
-        return result
-
-    return None
+    return parse_int_in_range(int_str, start_range=0, end_range=3)
 
 
 def get_next_date(
@@ -96,6 +132,7 @@ def get_next_date(
         return None
 
     if weekday is not None:
+        tmp_date = current_date
         if current_date is None:
             current_date = datetime.date.today()
 
@@ -104,6 +141,10 @@ def get_next_date(
             days_delta += 7
 
         return_date = current_date + datetime.timedelta(days=days_delta)
+
+        if return_date == current_date and tmp_date is not None:
+            return current_date + datetime.timedelta(days=7 * each_number)
+
         return return_date
 
     if argument == "day":
@@ -129,10 +170,9 @@ def get_next_date(
 
 
 def parse_repeated_arguments(
-    date: Optional[datetime.date], repeated_arguments: Tuple[str, str, str]
+    date: Optional[datetime.date], repeated_arguments: Tuple[int, str, int]
 ) -> Optional[List[datetime.date]]:
-    if (date is not None and not isinstance(date, datetime.date)) or not isinstance(
-        tuple, repeated_arguments
+    if (date is not None and not isinstance(date, datetime.date)) or not isinstance(repeated_arguments, tuple
     ):
         logging.warning("Got unexpected agruments")
         return None
@@ -141,9 +181,10 @@ def parse_repeated_arguments(
         logging.warning("Wrong number of arguments for repeated arguments")
         return None
 
-    each_number = parse_int(repeated_arguments[0])
+    each_number = repeated_arguments[0]
 
-    if each_number is None or each_number < 1:
+    if not isinstance(each_number, int) or each_number < 1:
+        print(each_number)
         logging.warning("Wrong argument for first argument in repeated events")
         return None
 
@@ -153,16 +194,17 @@ def parse_repeated_arguments(
         logging.warning("Wrong type of each argument")
         return None
 
-    weekday_number = is_day_of_week(each_argument)
+    weekday_number = day_of_week(each_argument)
 
     if not (weekday_number is not None or each_argument in ["day", "week", "month"]):
         logging.warning("Wrong value of second argument in repeated events")
         return None
 
-    number_of_repetitions = parse_int(repeated_arguments[2])
+    number_of_repetitions = repeated_arguments[2]
 
-    if number_of_repetitions is None:
+    if not isinstance(number_of_repetitions, int):
         logging.warning("Wrong argument for third argument in repeated events")
+        return None
 
     date_list = []
 
@@ -184,14 +226,14 @@ def parse_repeated_arguments(
         else:
             date_list = [datetime.date.today()]
 
-    for i in range(each_number - 1):
+    for i in range(number_of_repetitions - 1):
         next_date = get_next_date(date_list[-1], each_argument, each_number)
 
         number_of_trying = 1
 
-        while next_date is None and i != each_number - 1 - number_of_trying:
+        while next_date is None and i != number_of_repetitions - 1 - number_of_trying:
             "In case of days in month less than days in date"
-            next_date = get_next_date(date_list[-1], each_argument, each_number + 1)
+            next_date = get_next_date(date_list[-1], each_argument, each_number + number_of_trying)
             number_of_trying += 1
 
         date_list.append(next_date)
@@ -204,7 +246,7 @@ def parse_date(date_str: str) -> Optional[Date]:
         logging.warning("Got unexpected type")
         return None
 
-    date_split = date_str.split("/")
+    date_split = date_str.strip().split("/")
     if len(date_split) != 3:
         logging.warning("Cannot parse to date")
         return None
@@ -224,7 +266,7 @@ def parse_date(date_str: str) -> Optional[Date]:
 
 
 def parse_time(time_str: str) -> Optional[datetime.time]:
-    time_str = time_str.lower()
+    time_str = time_str.strip().lower()
 
     if len(time_str.split(":")) != 2:
         logging.warning("Time is in wrong format")
@@ -256,7 +298,7 @@ def parse_start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndT
         logging.warning("Got non-string type in parse time function")
         return None
 
-    time_str = time_str.lower()
+    time_str = time_str.strip().lower()
 
     if len(time_str.split("-")) != 2:
         logging.warning("Got wrong format of string")
@@ -275,7 +317,7 @@ def parse_task(task_str: str, telegram_id: int) -> Optional[Task]:
         logging.warning("Got non-string type in parse task function")
         return None
 
-    task_split = task_str.split("-")
+    task_split = task_str.strip().split("-")
     if not (4 <= len(task_split) <= 6):
         logging.warning("Got unexpected number of arguments")
         return None
@@ -354,7 +396,7 @@ def parse_event(
         not isinstance(event_name, str)
         or not isinstance(start_time, datetime.time)
         or not isinstance(duration, int)
-        or (dates is not None or not isinstance(dates))
+        or (dates is not None and not isinstance(dates, list))
     ):
         logging.warning("Wrong type of passed arguments")
         return None
@@ -368,6 +410,7 @@ def parse_event(
 
     events = [
         Event(
+            event_id=None,
             event_name=event_name,
             repeat_number=i,
             start_time=start_time,
@@ -442,7 +485,7 @@ def parse_marking_history(
         logging.warning("Got unexpected type")
         return None
 
-    mark_history_split = mark_history_str.split("-")
+    mark_history_split = mark_history_str.strip().split("-")
 
     if len(mark_history_split) != 3:
         logging.warning("Got unexpected number of arguments")
