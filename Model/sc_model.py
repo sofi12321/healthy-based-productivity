@@ -4,7 +4,7 @@ from torch.nn.parameter import Parameter
 import numpy as np
 
 
-class I_Filter:
+class InFilter:
     def __init__(self, model):
         """
         Simple initialization of the class
@@ -44,10 +44,10 @@ class I_Filter:
 
 
 
-class O_Filter:
+class Out_Filter:
     def __init__(self, out_features, model):
         """
-
+        Simple constructor of the output filter.
         :param out_features:
         :param model:
         """
@@ -92,14 +92,14 @@ class O_Filter:
 
 
 class SC_LSTM(nn.Module):
-
-    def __init__(self, in_features, lstm_layers, hidden, out_features, pred_interval=1440, hidden_injector=40, device='cpu', dtype=None):
+    def __init__(self, in_features, lstm_layers, hidden, out_features, batch_size, train_mode="lstm", pred_interval=1440, hidden_injector=40, device='cpu', dtype=None):
         """
         A constructor for the SC_LSTM class.
         :param in_features: number of input features
         :param lstm_layers: number of layers in LSTM
         :param hidden: size of hidden layer LSTM would output
         :param out_features: number of output features after LSTM -> Linear layer
+        :param batch_size: size of a batch
         :param pred_interval: interval where network should schedule the task
         :param hidden_injector: size of hidden layer in injector network.
             Used in non-reschedulable tasks to inject context to LSTM.
@@ -116,15 +116,18 @@ class SC_LSTM(nn.Module):
         self.out_features = out_features
         self.lstm_layers = lstm_layers
         self.hidden = hidden
+        self.batch_size = batch_size
+        self.train_mode = train_mode
         self.pred_interval = pred_interval             # Prediction interval in minutes (24*60=1440)
-        self.hn = torch.zeros(lstm_layers, 1, hidden)         # LSTM intermediate result
-        self.cn = torch.zeros(lstm_layers, 1, hidden)          # LSTM intermediate result
+        self.hn = torch.zeros(lstm_layers, batch_size, hidden)         # LSTM intermediate result
+        self.cn = torch.zeros(lstm_layers, batch_size, hidden)          # LSTM intermediate result
 
         # Objects declaration
-        self.i_f = I_Filter(self)
-        self.o_f = O_Filter(out_features, self)
+        self.i_f = InFilter(self)
+        self.o_f = Out_Filter(out_features, self)
         self.lstm = nn.LSTM(in_features, hidden, lstm_layers, batch_first=True)
         self.lstm_linear = nn.Linear(hidden, out_features)
+        self.lstm_lin_activation = nn.ReLU()
 
         # NN for injecting non reschedulable tasks
         self.hidden_injector = hidden_injector
@@ -134,8 +137,6 @@ class SC_LSTM(nn.Module):
             nn.Linear(hidden_injector, hidden),
             nn.ReLU()
         )
-
-
 
     def forward(self, x, task_type, free_time_slots):
         """
@@ -157,7 +158,69 @@ class SC_LSTM(nn.Module):
                 out = self.o_f.filter_task(x, out, (hn_new, cn_new), free_time_slots)
                 return out
 
+        elif self.training:
+            # If we need to train only lstm use lstm and linear layer
+            if self.train_mode == "lstm":
+                out, (self.hn, self.cn) = self.lstm(x, (self.hn, self.cn))
+                out = self.lstm_linear(out)
+                out = self.lstm_lin_activation(out)
+                return out
 
+            # If we need to train only injector use injector and freezed pretrained linear
+            elif self.train_mode == "injector":
+                out = self.injector(x)
+                out = self.lstm_lin_activation(out)
+                return out
+
+
+
+
+    def train_injector(self):
+        # To train injector we need to freeze lstm and lstm_linear layers
+        frozen_layers = [self.lstm, self.lstm_linear, self.lstm_lin_activation]
+        for layer in frozen_layers:
+            for param in layer.parameters():
+                param.requires_grad = False
+
+        # Leave only injector trainable
+        for param in self.injector.parameters():
+            param.requires_grad = True
+
+        self.train_mode = "injector"
+
+
+
+    def train_lstm(self):
+        # Set injector to not trainable
+        for param in self.injector.parameters():
+            param.requires_grad = False
+
+        # Unfreeze lstm and lstm_linear layers
+        frozen_layers = [self.lstm, self.lstm_linear, self.lstm_lin_activation]
+        for layer in frozen_layers:
+            for param in layer.parameters():
+                param.requires_grad = True
+
+        self.train_mode = "lstm"
+
+
+
+    def eval(self):
+        # Set requires_grad to False for all parameters
+        for param in self.parameters():
+            param.requires_grad = False
+        # Call the original eval() function
+        super(SC_LSTM, self).eval()
+
+
+
+    def train(self, mode=True):
+        # Set requires_grad to True for all parameters
+        for param in self.parameters():
+            param.requires_grad = True
+
+        # Call the original train() function
+        super(SC_LSTM, self).train(True)
 
 
 
