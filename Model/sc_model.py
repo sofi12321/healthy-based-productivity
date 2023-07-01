@@ -31,8 +31,10 @@ class InFilter:
 
             # Return not modified task times
             #TODO: parse task into start, end and refractory times.
-            y = (start, end, refr)
-            return y
+            print(f'Non res. task: {x}')
+            # y = (start, end, refr)
+            # return y
+            return None
 
         # If the task is reschedulable, just forward the lstm and linear layers
         elif task_type == 'resched':
@@ -106,7 +108,7 @@ class Out_Filter:
 
 
 class SC_LSTM(nn.Module):
-    def __init__(self, in_features, lstm_layers, hidden, out_features, batch_size, train_mode="lstm", pred_interval=1440, hidden_injector=40, device='cpu', dtype=None):
+    def __init__(self, in_features, lstm_layers, hidden, out_features, batch_size, pred_interval=1440, hidden_injector=40, device='cpu', dtype=None):
         """
         A constructor for the SC_LSTM class.
         :param in_features: number of input features
@@ -131,10 +133,16 @@ class SC_LSTM(nn.Module):
         self.lstm_layers = lstm_layers
         self.hidden = hidden
         self.batch_size = batch_size
-        self.train_mode = train_mode
+        self.train_mode = 'lstm'
         self.pred_interval = pred_interval             # Prediction interval in minutes (24*60=1440)
         self.hn = torch.zeros(lstm_layers, batch_size, hidden)         # LSTM intermediate result
         self.cn = torch.zeros(lstm_layers, batch_size, hidden)          # LSTM intermediate result
+        if batch_size == 1:
+            self.hn = self.hn.squeeze(1)
+            self.cn = self.cn.squeeze(1)
+
+        # Randomly initialize weights for all the layers
+        self.__init_weights(self)
 
         # Objects declaration
         self.i_f = InFilter(self)
@@ -236,5 +244,9 @@ class SC_LSTM(nn.Module):
         # Call the original train() function
         super(SC_LSTM, self).train(True)
 
+
+    def __init_weights(self):
+        for name, param in self.named_parameters():
+            nn.init.normal_(param)
 
 

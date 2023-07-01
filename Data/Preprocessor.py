@@ -205,5 +205,3 @@ if __name__ == '__main__':
     print(input_vector)
     print(type_vector)
     print(output_vector)
-
-#%%
