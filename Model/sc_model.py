@@ -38,6 +38,7 @@ class InFilter:
         elif task_type == 'resched':
             out, (hn_new, cn_new) = self.model.lstm(x, (self.model.hn, self.model.cn))
             out = self.model.lstm_linear(out)
+            out = self.model.lstm_lin_activation(out)
             return out, (hn_new, cn_new)
 
 
@@ -68,7 +69,7 @@ class Out_Filter:
 
         # Check for the output filtration until it give feasible solution
         while True:
-            out_check = self._check_overlay(out, free_time_slots)
+            out_check = self.__check_overlay(out, free_time_slots)
 
             # If the output is feasible, set new hidden and cell states and return the output
             if out_check:
@@ -82,10 +83,23 @@ class Out_Filter:
             out = self.model.lstm_linear(out)
 
 
-    def _check_overlay(self, times, free_time_slots):
+    def __check_overlay(self, times, free_time_slots):
+        """
+
+        :param times: tuple of (start, end, refr) times of the scheduled task
+        :param free_time_slots: normalized array of
+            free time slots [[0.0, 0.02], [0.07, 0.2], ...]
+        :return:
+        """
+        pred_interval = self.model.pred_interval
         start, end, refr = times
-        #TODO
-        return True
+
+        # Check if the scheduled task fit in available time slots
+        for time_slot in free_time_slots:
+            if time_slot[0] <= start <= time_slot[1] and time_slot[0] <= end <= time_slot[1] and start > refr:
+                return True
+
+        return False
 
 
 
@@ -138,7 +152,7 @@ class SC_LSTM(nn.Module):
             nn.ReLU()
         )
 
-    def forward(self, x, task_type, free_time_slots):
+    def forward(self, x, task_type='', free_time_slots=''):
         """
         Forward pass of the model.
         :param x: input feature vector.
