@@ -2,11 +2,9 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 
 
 class GetBasicInfo(StatesGroup):
-    StartEndOfDay = State()
-
-
-class BaseState(StatesGroup):
-    Unit = State()
+    NameOfUser = State()
+    StartOfDay = State()
+    EndOfDay = State()
 
 
 class GetTaskInfo(StatesGroup):
@@ -30,7 +28,6 @@ class GetEventInfo(StatesGroup):
 
 class MarkHistory(StatesGroup):
     ChooseTask = State()
-    MarkingHistory = State()
-
-
-UnitState = State()
+    MarkingHistoryStartTime = State()
+    MarkingHistoryDuration = State()
+    MarkingHistoryIsDone = State()

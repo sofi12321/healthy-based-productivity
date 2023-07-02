@@ -5,11 +5,10 @@ from typing import Optional
 
 @dataclass
 class Task:
-    telegam_id: int
+    telegram_id: int
     task_name: str
     duration: int
     importance: int
-    complexity: int
     start_time: Optional[datetime.time] = None
     date: datetime.date = datetime.date.today()
     is_done: bool = False
@@ -29,9 +28,10 @@ class BasicUserInfo:
 
 @dataclass
 class Event:
-    event_id: Optional[int]
+    telegram_id: int
     event_name: str
     start_time: datetime.time
     duration: int
     date: datetime.date = datetime.date.today()
     repeat_number: int = 0
+    event_id: Optional[int] = None

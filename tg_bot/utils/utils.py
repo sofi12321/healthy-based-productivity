@@ -1,7 +1,7 @@
 import datetime
 import logging
 from typing import TypeAlias, Optional, Tuple, List
-from domain.domain import Task, Event
+from domain.domain import Task, Event, BasicUserInfo
 
 # Task aliases
 TaskName: TypeAlias = str
@@ -293,6 +293,7 @@ def parse_time(time_str: str) -> Optional[datetime.time]:
     return datetime.time(hour=hours, minute=minutes)
 
 
+"""
 def parse_start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndTime]]:
     if not isinstance(time_str, str):
         logging.warning("Got non-string type in parse time function")
@@ -310,8 +311,53 @@ def parse_start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndT
         return None
 
     return start_time, end_time
+"""
 
 
+def parse_user(user_id: int, user_name: str, start_time: datetime.time, end_time: datetime.time) -> Optional[BasicUserInfo]:
+    if not isinstance(user_id, int) or not isinstance(user_name, str) or not isinstance(start_time, datetime.time) or not isinstance(end_time, datetime.time):
+        logging.warning("Got unexpected type")
+        return None
+
+    return BasicUserInfo(
+        telegram_id=user_id,
+        user_name=user_name,
+        start_time=start_time,
+        end_time=end_time
+    )
+
+
+def parse_task(user_id: int, task_name: str, duration: int, importance: int, start_time: Optional[datetime.time], date: Optional[datetime.date]) -> Optional[Task]:
+    if not (isinstance(user_id, int) and isinstance(task_name, str) and isinstance(duration, int) and isinstance(importance, int) and (isinstance(start_time, datetime.time) or start_time is None) and (isinstance(date, datetime.date) or date is None)):
+        # logging.debug(user_id, task_name, duration, importance, start_time, date)
+        logging.warning("Got unexpected type")
+        return None
+
+    task_name = task_name.strip()
+
+    if not (1 <= len(task_name) <= 255):
+        logging.warning("Wrong format of task_name")
+        return None
+
+    if not (1 <= duration <= 24 * 60):
+        logging.warning("Wrong format of duration")
+        return None
+
+    if not (0 <= importance <= 3):
+        logging.warning("Wrong format of importance")
+        return None
+
+    return Task(
+        telegram_id=user_id,
+        task_name=task_name,
+        duration=duration,
+        importance=importance,
+        start_time=start_time,
+        date=date or datetime.date.today(),
+    )
+
+
+"""
 def parse_task(task_str: str, telegram_id: int) -> Optional[Task]:
     if not isinstance(task_str, str):
         logging.warning("Got non-string type in parse task function")
@@ -361,6 +407,7 @@ def parse_task(task_str: str, telegram_id: int) -> Optional[Task]:
     return Task(
         telegram_id, task_name, duration, importance, complexity, start_time, date
     )
+"""
 
 
 def get_task(data: dict, telegram_id) -> Optional[Task]:
@@ -387,13 +434,16 @@ def get_task(data: dict, telegram_id) -> Optional[Task]:
 
 
 def parse_event(
+    user_id: int,
     event_name: str,
     start_time: datetime.time,
     duration: int,
     dates: Optional[datetime.date],
 ) -> Optional[List[Event]]:
     if (
+        
         not isinstance(event_name, str)
+        or not isinstance(user_id, int)
         or not isinstance(start_time, datetime.time)
         or not isinstance(duration, int)
         or (dates is not None and not isinstance(dates, list))
@@ -410,6 +460,7 @@ def parse_event(
 
     events = [
         Event(
+            telegram_id=user_id,
             event_id=None,
             event_name=event_name,
             repeat_number=i,
