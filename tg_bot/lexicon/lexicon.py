@@ -3,20 +3,13 @@ import logging
 
 lexicon = {
     "en": {
-        "first_hello": "Hello, I am scheduler bot that will help "
-        + "you gain healthy based productivity. "
-        + "Please enter your start and end of the day"
-        + "time in the following format:\n"
-        + "\t```[start_time]-[end_time]```"
-        + "\nFor example, 13:00-2:00 or 1:00PM-2:00AM",
+        "first_hello": """Hello, I am scheduler bot that will help
+        you gain healthy based productivity.
+        Please enter your name or nickname.""",
+
         "hello": "Hello, how can I help you?",
-        "retry_first_hello": "Please enter correctly in the following format:"
-        + "\t```[start_time]-[end_time]```"
-        + "\nFor example, 13:00-2:00 or 1:00PM-2:00AM",
         "write_success": "Successfully saved!",
-        "add_task": """To add task, please, enter task name or full info about task in the following format:\n\t
-        ```[task_name]-[duration (in minutes)]-[importance]-[complexity]-[start_time]-[date]```\n
-        start_time and date are optional""",
+        "add_task": """To add task, please, enter task name.""",
         "get_duration_task": """Cool, now enter duration of task, please""",
         "get_complexity_task": "Please, enter complexity of task",
         "get_importance_task": "Please, enter importance of task",
@@ -52,6 +45,24 @@ lexicon = {
         '11:00' or '1:00AM'""",
         "retry_trouble": "Sorry, unexpected error. Please, try again",
         "error": "Got unexpected error: \n\t{}",
+
+        'user_not_found': "Please, proceed through '/start' function to register",
+        "retry_yesno": "Please enter either 'yes' or 'no'",
+        "marking_history_is_done": """Now, please tell whether you finished task or not.
+        Enter either 'yes' or 'no'""",
+        "marking_history_duration": """Please enter duration of task completion in minutes""",
+        "marking_history_start_time": """Please enter time of task start in the following format:\n\t
+        '13:00' or '1:00AM'""",
+
+        "basic_info_start_of_day": """Please enter time of your day start in
+        the following format:\n\t
+        '13:00' or '1:00AM'""",
+
+        "basic_info_end_of_day": """Please enter time of your day end in
+        the following format:\n\t
+        '13:00' or '1:00AM'""",
+
+        "retry_name": "Please enter name with length between 1 and 255"
     }
 }
 

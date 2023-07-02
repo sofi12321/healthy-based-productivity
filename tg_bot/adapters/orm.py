@@ -25,7 +25,7 @@ users_table = Table(
     "Users",
     metadata,
     Column("telegram_id", Integer, primary_key=True, unique=True),
-    Column("name", Text, nullable=False),
+    Column("user_name", Text, nullable=False),
     Column("start_time", Time, nullable=False),
     Column("end_time", Time, nullable=False),
 )
@@ -37,7 +37,8 @@ tasks_table = Table(
     Column(
         "telegram_id",
         Integer,
-        ForeignKey("Users.telegram_id", unupdate="CASCADE", ondelete="CASCADE"),
+        ForeignKey("Users.telegram_id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False
     ),
     Column("task_name", Text, nullable=False),
     Column("duration", Integer, nullable=False),
@@ -49,17 +50,24 @@ tasks_table = Table(
     Column("real_duration", Integer, nullable=True),
     Column("real_date", Date, nullable=True),
     # Constraints
-    CheckConstraints("duration > 0"),
-    CheckConstraints("importance >= 0 and importance <= 3"),
-    CheckConstraints("real_duration is null or real_duration > 0"),
-    CheckConstraints(
-        "is_done is true and real_start is not null and real_duration is not null and real_date is not null"
+    CheckConstraint("duration > 0"),
+    CheckConstraint("importance >= 0 and importance <= 3"),
+    CheckConstraint("real_duration is null or real_duration > 0"),
+    CheckConstraint(
+        """(is_done is true and real_start is not null and real_duration is not null and real_date is not null)
+        or (is_done is false and real_start is null and real_duration is null and real_date is null)"""
     ),
 )
 
 events_table = Table(
     "Events",
     metadata,
+    Column(
+        "telegram_id",
+        Integer,
+        ForeignKey("Users.telegram_id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+    ),
     Column("event_id", Integer, primary_key=True, autoincrement=True),
     Column("event_name", Text, nullable=False),
     Column("start_time", Time, nullable=False),
@@ -79,8 +87,7 @@ def start_mappers():
 
 
 def create_all(engine):
-    metadata.bind(engine)
-    metadata.create_all()
+    metadata.create_all(engine)
 
 
 def delete_all(engine):
