@@ -46,7 +46,7 @@ def call_model(type, input_features):
     """
     Perform scheduling for a event or event.
 
-    :param type: event for non-reschedulable,event for reschedulable
+    :param type: event for non-reschedulable, task for reschedulable
     :param input_features: vector of preprocessed features of the event
     :return: TODO: vector of 2 or 3 numbers
     """
