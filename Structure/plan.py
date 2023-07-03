@@ -42,11 +42,11 @@ def preprocess_task(task: Task, label: [int, int, int, int]):
     return result
 
 
-def call_model(type, input_features):
+def call_model(task_type, input_features):
     """
     Perform scheduling for a event or event.
 
-    :param type: event for non-reschedulable, task for reschedulable
+    :param task_type: event for non-reschedulable, task for reschedulable
     :param input_features: vector of preprocessed features of the event
     :return: TODO: vector of 2 or 3 numbers
     """
