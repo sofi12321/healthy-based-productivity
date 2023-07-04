@@ -266,3 +266,19 @@ class SC_LSTM(nn.Module):
             nn.init.normal_(param)
 
 
+    def get_states(self):
+        return self.hn, self.cn
+
+
+    def set_states(self, hn, cn):
+        # Convert to tensors with appropriate dtype if they are not
+        if not isinstance(hn, torch.Tensor):
+            hn = torch.tensor(hn).type(torch.float32)
+        if not isinstance(cn, torch.Tensor):
+            cn = torch.tensor(cn).type(torch.float32)
+
+        # Set states
+        self.hn = hn
+        self.cn = cn
+
+
