@@ -31,7 +31,7 @@ class GeneratorOfAvailableTimeslots:
                 return intervals[:i+1]  # Return the intervals generated so far
 
             intervals_sum += interval_size  # Update the cumulative sum
-            print(intervals.shape)
+            # print(intervals.shape)
 
         return intervals
 
@@ -45,7 +45,8 @@ class GeneratorOfAvailableTimeslots:
             print(f"Interval {i+1}: {interval}")
 
 
-if __name__ == '__main__':
-    generator = GeneratorOfAvailableTimeslots(5)
-    generator.generate_available_timeslots()
-    generator.print_available_timeslots()
+# TODO: Uncomment only for debugging
+# if __name__ == '__main__':
+#     generator = GeneratorOfAvailableTimeslots(5)
+#     generator.generate_available_timeslots()
+#     generator.print_available_timeslots()

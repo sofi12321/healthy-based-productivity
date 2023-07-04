@@ -135,14 +135,14 @@ class SC_LSTM(nn.Module):
         self.batch_size = batch_size
         self.train_mode = 'lstm'
         self.pred_interval = pred_interval             # Prediction interval in minutes (24*60=1440)
-        self.hn = torch.zeros(lstm_layers, batch_size, hidden)         # LSTM intermediate result
-        self.cn = torch.zeros(lstm_layers, batch_size, hidden)          # LSTM intermediate result
-        if batch_size == 1:
-            self.hn = self.hn.squeeze(1)
-            self.cn = self.cn.squeeze(1)
+        self.hn = None
+        self.cn = None
+
+        # Reset states of the model to zero while initialize
+        self.reset_states()
 
         # Randomly initialize weights for all the layers
-        self.__init_weights(self)
+        self.__init_weights()
 
         # Objects declaration
         self.i_f = InFilter(self)
@@ -160,7 +160,7 @@ class SC_LSTM(nn.Module):
             nn.ReLU()
         )
 
-    def forward(self, x, task_type='', free_time_slots=''):
+    def forward(self, x, task_type='', free_time_slots='', save_states=False):
         """
         Forward pass of the model.
         :param x: input feature vector.
@@ -183,7 +183,13 @@ class SC_LSTM(nn.Module):
         elif self.training:
             # If we need to train only lstm use lstm and linear layer
             if self.train_mode == "lstm":
-                out, (self.hn, self.cn) = self.lstm(x, (self.hn, self.cn))
+                out, (hn, cn) = self.lstm(x, (self.hn, self.cn))
+
+                # Reinitialize hidden and cell states as new hn and cn by copying them
+                if save_states:
+                    self.hn = hn.detach()
+                    self.cn = cn.detach()
+
                 out = self.lstm_linear(out)
                 out = self.lstm_lin_activation(out)
                 return out
@@ -191,24 +197,9 @@ class SC_LSTM(nn.Module):
             # If we need to train only injector use injector and freezed pretrained linear
             elif self.train_mode == "injector":
                 out = self.injector(x)
+                out = self.lstm_linear(out)
                 out = self.lstm_lin_activation(out)
                 return out
-
-
-
-
-    def train_injector(self):
-        # To train injector we need to freeze lstm and lstm_linear layers
-        frozen_layers = [self.lstm, self.lstm_linear, self.lstm_lin_activation]
-        for layer in frozen_layers:
-            for param in layer.parameters():
-                param.requires_grad = False
-
-        # Leave only injector trainable
-        for param in self.injector.parameters():
-            param.requires_grad = True
-
-        self.train_mode = "injector"
 
 
 
@@ -224,6 +215,21 @@ class SC_LSTM(nn.Module):
                 param.requires_grad = True
 
         self.train_mode = "lstm"
+
+
+
+    def train_injector(self):
+        # To train injector we need to freeze lstm and lstm_linear layers
+        frozen_layers = [self.lstm, self.lstm_linear, self.lstm_lin_activation]
+        for layer in frozen_layers:
+            for param in layer.parameters():
+                param.requires_grad = False
+
+        # Leave only injector trainable
+        for param in self.injector.parameters():
+            param.requires_grad = True
+
+        self.train_mode = "injector"
 
 
 
@@ -243,6 +249,16 @@ class SC_LSTM(nn.Module):
 
         # Call the original train() function
         super(SC_LSTM, self).train(True)
+
+
+
+    def reset_states(self):
+        self.hn = torch.zeros(self.lstm_layers, self.batch_size, self.hidden)         # LSTM intermediate result
+        self.cn = torch.zeros(self.lstm_layers, self.batch_size, self.hidden)          # LSTM intermediate result
+        if self.batch_size == 1:
+            self.hn = self.hn.squeeze(1)
+            self.cn = self.cn.squeeze(1)
+
 
 
     def __init_weights(self):
