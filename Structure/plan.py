@@ -63,17 +63,17 @@ class Planner:
         # TODO: Danila
         return [None, None, None]
 
-    def fill_schedule(self, telegram_id: int, output: [datetime.date, datetime.time, int]):
+    def fill_schedule(self, task_id: int, output: [datetime.date, datetime.time, int]):
         """
         Returns the output of the scheduler in a dictionary format, usable with database.
 
-        :param telegram_id: id of the event in a database
+        :param task_id: id of the event in a database
         :param output: scheduling parameters of the event
         :return: dictionary to save data in database
         """
         # TODO: Danila
         # TODO: Deside 2 or 3 output features
-        return {'telegram_id': telegram_id,
+        return {'task_id': task_id,
                 'predicted_date': output[0],
                 'predicted_start_time': output[1],
                 'predicted_offset': output[2]}
@@ -110,7 +110,7 @@ class Planner:
             input_features = self.preprocess_task(task, label)
             model_output = self.call_model("event", input_features)
             result = self.convert_output_to_schedule(model_output)
-            resulted_schedule.append(self.fill_schedule(task.telegram_id, result))
+            resulted_schedule.append(self.fill_schedule(task.task_id, result))
         return resulted_schedule
 
     def convert_history_to_output(self, real_date: datetime.date, real_start: datetime.time, real_duration: int,
@@ -153,7 +153,7 @@ class Planner:
 
         :param tasks: list of objects of class Task in a schedule
         :param events: list of objects of class Event in a schedule
-        :return: list of dictionaries
+        :return: string with the schedule
         """
         # tasks = [Task, Task, Task, ...]
         # events = [Event, Event, Event, ...]
