@@ -1,10 +1,24 @@
 import datetime
 from dir1.bot_classes import Task, Event
-
+from Model.sc_model import SC_LSTM
+from torch import load
 
 class Planner:
     def __init__(self):
-        pass
+        # TODO: All the parameters should be in configured after training
+        self.scheduler = SC_LSTM(in_features=11,
+                                 lstm_layers=3,
+                                 hidden=124,
+                                 hidden_injector=64,
+                                 out_features=3,
+                                 batch_size=1,
+                                 pred_interval=1440)
+
+        # Load model weights
+        self.scheduler.load_state_dict(load('Model/sc_lstm_weights.pth'))
+
+        # Set the model to evaluation mode
+        self.scheduler.eval()
 
     def label_handling(self, task_name: str) -> [int, int, int, int]:
         """
@@ -43,16 +57,30 @@ class Planner:
         result = label + [task.duration, task.importance]
         return result
 
-    def call_model(self, task_type, input_features):
+    def call_model(self, task_type, input_features, available_time_slots, user_h, user_c):
         """
-        Perform scheduling for a event or event.
-
+        Perform scheduling for an event or event.
         :param task_type: event for non-reschedulable, task for reschedulable
         :param input_features: vector of preprocessed features of the event
-        :return: TODO: vector of 2 or 3 numbers
+        :param available_time_slots: vector of available (free) time slots
+        :param user_h: hidden state of the user
+        :param user_c: cell state of the user
+        :return: (,3) vector prediction of the model, and the new user states (h, c)
         """
-        # TODO: Leon
-        return [0, 0, 0]
+
+        # Set the model states to user states
+        self.scheduler.set_states(user_h, user_c)
+
+        # Make a model prediction
+        pred = self.scheduler.forward(input_features,
+                                      task_type=task_type,
+                                      free_time_slots=available_time_slots,
+                                      save_states=True)
+
+        # Get new user states
+        new_h, new_c = self.scheduler.get_states()
+
+        return pred, (new_h, new_c)
 
     def convert_output_to_schedule(self, model_output) -> [datetime.date, datetime.time, int]:
         """
@@ -101,14 +129,14 @@ class Planner:
         for event in events:
             label = self.label_handling(event.event_name)
             input_features = self.preprocess_event(event, label)
-            self.call_model("event", input_features)
+            self.call_model("event", input_features)            # TODO: Ilnur pass available_time_slots, user_h, user_c parameters
 
         tasks = self.sort_tasks(tasks)
 
         for task in tasks:
             label = self.label_handling(task.task_name)
             input_features = self.preprocess_task(task, label)
-            model_output = self.call_model("event", input_features)
+            model_output = self.call_model("event", input_features)     # TODO: Ilnur pass available_time_slots, user_h, user_c parameters
             result = self.convert_output_to_schedule(model_output)
             resulted_schedule.append(self.fill_schedule(task.task_id, result))
         return resulted_schedule
