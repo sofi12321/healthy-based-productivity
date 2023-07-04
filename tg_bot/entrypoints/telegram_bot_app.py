@@ -7,7 +7,7 @@ from aiogram.utils import executor
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import config
+import config as config
 from adapters import orm, repositories
 
 from states.states import (
@@ -40,6 +40,9 @@ import logging
 
 API_TOKEN: str = os.getenv("TGTOKEN")
 
+# Number of hours that represents part of time for model to predict data
+ALPHA: int = 24
+
 if API_TOKEN is None:
     logging.error(
         "Please enter telegram bot api token to the environment variable 'TGTOKEN'"
@@ -51,7 +54,7 @@ get_session = sessionmaker(bind=engine)
 repositories.initialize_repositories(get_session())
 orm.start_mappers()
 
-# orm.delete_all(engine)
+orm.delete_all(engine)
 orm.create_all(engine)
 
 
@@ -171,7 +174,7 @@ async def get_task_name(message: Message, state: FSMContext):
     Used to parse beggining with gaining task name
     """
     message_text = message.text
-    message_text = message_text.strip().lower()
+    message_text = message_text.strip()
 
     if not (1 <= len(message_text) <= 255):
         """Please retry"""
@@ -199,24 +202,6 @@ async def get_task_duration(message: Message, state: FSMContext):
 
     await state.set_state(GetTaskInfo.TaskImportanceState)
     await message.answer(lexicon["en"]["get_importance_task"])
-
-"""
-@dp.message_handler(state=GetTaskInfo.TaskComplexityState)
-async def get_task_complexity(message: Message, state: FSMContext):
-    message_text = message.text
-    result = parse_int(message_text)
-
-    if result is None:
-        \"\"\"Please retry\"\"\"
-        await message.answer(lexicon["en"]["retry_int"])
-        return
-
-    async with state.proxy() as data:
-        data["task_complexity"] = result
-
-    await state.set_state(GetTaskInfo.TaskImportanceState)
-    await message.answer(lexicon["en"]["get_importance_task"])
-"""
 
 
 @dp.message_handler(state=GetTaskInfo.TaskImportanceState)
@@ -616,3 +601,28 @@ async def marking_history_is_done(message: Message, state: FSMContext):
 
     await message.answer(lexicon['en']['write_success'])
     await state.finish()
+
+
+@dp.message_handler(commands=['plan'], state='*')
+def plan_new_schedule(message: Message, state: FSMContext):
+    """
+    Gathering unscheduled tasks and events from user and
+    sends it to model and shows new generated schedule
+    by model
+    """
+
+    message_text = message.text
+
+    """Gathering unscheduled tasks and events"""
+
+    pass
+
+    """Sending to model"""
+
+    pass
+
+    """Gathering and saving generated information"""
+
+    pass
+
+    """Replying to user"""
