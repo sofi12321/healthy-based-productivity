@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import datetime
+import random
 from sklearn.preprocessing import MinMaxScaler
 from feature_engine.creation import CyclicalFeatures
 from dataclasses import dataclass
@@ -126,7 +127,7 @@ class Preprocessor:
                     repeat = int(repeat_arguments[2])
                     for i in range(int(repeat_arguments[2])):
                         date = self._get_nearest_day(day_name) + datetime.timedelta(days=shift * i * 7)
-                        print(date)
+                        # print(date)
                         day = date.day
                         month = date.month
                         input.loc[len(input)] = {'Label Number': label_num,
@@ -151,18 +152,17 @@ class Preprocessor:
         input.sort_values(by=['Importance'], inplace=True, ascending=False)
         input.reset_index(drop=True, inplace=True)
 
-        type = input['Type'].to_numpy()
+        task_type = input['Type'].to_numpy()
         input.drop(columns=['Type'], inplace=True)
 
         output = np.empty(len(input), dtype=object)
         for i in range(len(input)):
-            if type[i] == 'non-resched':
+            if task_type[i] == 'non-resched':
                 output[i] = np.array([input['Time_Min'][i], input['Duration'][i], 0])
             else:
                 output[i] = np.nan
 
-        return input, type, output
-
+        return input, task_type, output
 
     def preprocess(self, queue):
 
@@ -175,35 +175,59 @@ class Preprocessor:
             input_vector["Date"] = pd.to_datetime(input_vector["Date"], format="%d/%m/%Y")
             input_vector["Date_Day"] = input_vector["Date"].dt.day
             input_vector["Date_Month"] = input_vector["Date"].dt.month
-            input_vector.drop(columns=["Start Time", "Date"], inplace=True)
+            input_vector["Date"] = input_vector["Date"].dt.strftime("%j").astype(int)
+            input_vector.drop(columns=["Start Time"], inplace=True)
 
-            type_vector = np.full(len(input_vector), "resched")
-            output_vector = np.full(len(input_vector), np.nan)
+            type_vector = np.empty(len(input_vector), dtype=object)
+            for i in range(len(type_vector)):
+                type_vector[i] = np.random.choice(["resched", "non-resched"], p=[0.8, 0.2])
+
+            output_vector = np.empty((len(input_vector), 3), dtype=object)
+            for i in range(len(input_vector)):
+                if type_vector[i] == 'non-resched':
+                    output_vector[i][0] = input_vector['Time_Min'][i]
+                    output_vector[i][1] = input_vector['Duration'][i]
+                    output_vector[i][2] = 0
+                else:
+                    if random.random() > 0.8:
+                        shift = random.randint(-15, 15)
+                        output_vector[i][0] = input_vector['Time_Min'][i]
+                        output_vector[i][1] = input_vector['Duration'][i] + shift
+                        output_vector[i][2] = shift
+                    else:
+                        output_vector[i][0] = input_vector['Time_Min'][i]
+                        output_vector[i][1] = input_vector['Duration'][i]
+                        output_vector[i][2] = 0
+
+        cyclical = CyclicalFeatures(variables=['Time_Min', 'Date_Day', 'Date_Month'])
+        input_vector = cyclical.fit_transform(input_vector)
+        input_vector.drop(columns=['Date_Day', 'Date_Month'], inplace=True)
 
         scaler = MinMaxScaler()
         input_vector['Duration'] = scaler.fit_transform(input_vector[['Duration']])
+        input_vector['Time_Min'] = scaler.fit_transform(input_vector[['Time_Min']])
 
-        cyclical = CyclicalFeatures(variables=['Time_Min', 'Date_Day', 'Date_Month'], drop_original=True, )
-        input_vector = cyclical.fit_transform(input_vector)
+        # Convert the output_vector to the same format as an input_vector
+        output_vector = pd.DataFrame(output_vector, columns=['start', 'end', 'refr'])
 
         return input_vector, type_vector, output_vector
 
-
-if __name__ == '__main__':
-    queue = [Task(task_name="Sport", duration=30, importance=3, start_time=datetime.time(hour=8, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=1),
-             Task(task_name="Food", duration=60, importance=2, start_time=datetime.time(hour=12, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=1),
-             Task(task_name="Hobby Active", duration=120, importance=1, start_time=datetime.time(hour=16, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=2),
-             Task(task_name="Hobby Passive", duration=60, importance=1, start_time=datetime.time(hour=18, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=0),
-             Task(task_name="Studying", duration=120, importance=3, start_time=datetime.time(hour=20, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=3),
-             Task(task_name="Work", duration=120, importance=3, start_time=datetime.time(hour=22, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=3),
-             Task(task_name="Other", duration=120, importance=3, start_time=datetime.time(hour=0, minute=0), date=datetime.date(year=2021, month=5, day=2), complexity=0),
-             Event(event_name="Sport", duration=120, repeat_arguments="1 monday 6", start_time=datetime.time(hour=0, minute=0)),
-             Event(event_name="Sport", duration=120, start_time=datetime.time(hour=0, minute=0))]
-
-    preprocessor = Preprocessor()
-    input_vector, type_vector, output_vector = preprocessor.preprocess(queue)
-    print(input_vector)
-    print(type_vector)
-    print(output_vector)
-
-#%%
+# TODO: Uncomment only for debugging
+# if __name__ == '__main__':
+#     # queue = [Task(task_name="Sport", duration=30, importance=3, start_time=datetime.time(hour=8, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=1),
+#     #          Task(task_name="Food", duration=60, importance=2, start_time=datetime.time(hour=12, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=1),
+#     #          Task(task_name="Hobby Active", duration=120, importance=1, start_time=datetime.time(hour=16, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=2),
+#     #          Task(task_name="Hobby Passive", duration=60, importance=1, start_time=datetime.time(hour=18, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=0),
+#     #          Task(task_name="Studying", duration=120, importance=3, start_time=datetime.time(hour=20, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=3),
+#     #          Task(task_name="Work", duration=120, importance=3, start_time=datetime.time(hour=22, minute=0), date=datetime.date(year=2021, month=5, day=1), complexity=3),
+#     #          Task(task_name="Other", duration=120, importance=3, start_time=datetime.time(hour=0, minute=0), date=datetime.date(year=2021, month=5, day=2), complexity=0),
+#     #          Event(event_name="Sport", duration=120, repeat_arguments="1 monday 6", start_time=datetime.time(hour=0, minute=0)),
+#     #          Event(event_name="Sport", duration=120, start_time=datetime.time(hour=0, minute=0))]
+#
+#     queue = pd.read_csv("schedule_v3.csv")
+#
+#     preprocessor = Preprocessor()
+#     input_vector, type_vector, output_vector = preprocessor.preprocess(queue)
+#     print(input_vector)
+#     print(type_vector)
+#     print(output_vector)
