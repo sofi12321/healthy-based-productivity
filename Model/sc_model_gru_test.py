@@ -22,12 +22,7 @@ class InFilter:
         """
         # If the task is not reschedulable,
         if task_type == 'non-resched':
-            h_new = self.model.injector(x)
-
-            # Forward the model but making it "thinking" that it returns h_new
-            _, (_, cn_new) = self.model.lstm(x, (self.model.hn, self.model.cn))
-            self.model.hn = h_new
-            self.model.cn = cn_new
+            self.model.hn = self.model.injector(x)
 
             # Return not modified task times
             duration = x[1]
@@ -37,12 +32,12 @@ class InFilter:
 
             return model_out
 
-        # If the task is reschedulable, just forward the lstm and linear layers
+        # If the task is reschedulable, just forward the gru and linear layers
         elif task_type == 'resched':
-            out, (hn_new, cn_new) = self.model.lstm(x, (self.model.hn, self.model.cn))
-            out = self.model.lstm_linear(out)
-            out = self.model.lstm_lin_activation(out)
-            return out, (hn_new, cn_new)
+            out, hn_new = self.model.gru(x, self.model.hn)
+            out = self.model.gru_linear(out)
+            out = self.model.gru_lin_activation(out)
+            return out, hn_new
 
 
 
@@ -59,16 +54,15 @@ class Out_Filter:
         self.model = model
 
 
-    def filter_task(self, x, out, model_state, free_time_slots):
+    def filter_task(self, x, out, hn_new, free_time_slots):
         """
         This function change the model behavior depending on its output.
         :param x: input feature vector
         :param out: initial model prediction from input filtration.
         :param free_time_slots: free time available in next `pred_interval` to insert the task.
-        :param model_state: model states (hidden and cell states)
+        :param hn_new: model state (hidden and cell states)
         :return: y: output feature vector
         """
-        (hn_new, cn_new) = model_state
 
         # Check for the output filtration until it give feasible solution
         while True:
@@ -77,13 +71,12 @@ class Out_Filter:
             # If the output is feasible, set new hidden and cell states and return the output
             if out_check:
                 self.model.hn = hn_new
-                self.model.cn = cn_new
                 return out
 
             # Else forward the model with the previous hidden and cell states
-            #TODO: maybe slightly modify h or c or x for network to not create the same output
-            out = self.model.lstm(x, (self.model.hn, self.model.cn))
-            out = self.model.lstm_linear(out)
+            #TODO: maybe slightly modify h or x for network to not create the same output
+            out = self.model.gru(x, self.model.hn)
+            out = self.model.gru_linear(out)
 
 
     def __check_overlay(self, times, free_time_slots):
@@ -108,36 +101,35 @@ class Out_Filter:
 
 
 
-class SC_LSTM(nn.Module):
-    def __init__(self, in_features, lstm_layers, hidden, out_features, batch_size, pred_interval=1440, hidden_injector=40, device='cpu', dtype=None):
+class SC_GRU(nn.Module):
+    def __init__(self, in_features, gru_layers, hidden, out_features, batch_size, pred_interval=1440, hidden_injector=40, device='cpu', dtype=None):
         """
-        A constructor for the SC_LSTM class.
+        A constructor for the SC_gru class.
         :param in_features: number of input features
-        :param lstm_layers: number of layers in LSTM
-        :param hidden: size of hidden layer LSTM would output
-        :param out_features: number of output features after LSTM -> Linear layer
+        :param gru_layers: number of layers in gru
+        :param hidden: size of hidden layer gru would output
+        :param out_features: number of output features after gru -> Linear layer
         :param batch_size: size of a batch
         :param pred_interval: interval where network should schedule the task
         :param hidden_injector: size of hidden layer in injector network.
-                                Used in non-reschedulable tasks to inject context to LSTM.
+                                Used in non-reschedulable tasks to inject context to gru.
         :param device: device to run the model on.
         :param dtype: data type to run the model on.
         """
 
         factory_kwargs = {'device': device, 'dtype': dtype}
 
-        super(SC_LSTM, self).__init__()
+        super(SC_GRU, self).__init__()
         # Variables declaration
         self.device = device
         self.in_features = in_features
         self.out_features = out_features
-        self.lstm_layers = lstm_layers
+        self.gru_layers = gru_layers
         self.hidden = hidden
         self.batch_size = batch_size
-        self.train_mode = 'lstm'
+        self.train_mode = 'gru'
         self.pred_interval = pred_interval             # Prediction interval in minutes (24*60=1440)
         self.hn = None
-        self.cn = None
         # Reset states of the model to zero while initialize
         self.reset_states()
 
@@ -148,9 +140,9 @@ class SC_LSTM(nn.Module):
         self.i_f = InFilter(self)
         self.o_f = Out_Filter(out_features, self)
         self.conv = Conv(self.pred_interval)
-        self.lstm = nn.LSTM(in_features, hidden, lstm_layers, batch_first=True)
-        self.lstm_linear = nn.Linear(hidden, out_features)
-        self.lstm_lin_activation = nn.ReLU()
+        self.gru = nn.GRU(in_features, hidden, gru_layers, batch_first=True)
+        self.gru_linear = nn.Linear(hidden, out_features)
+        self.gru_lin_activation = nn.ReLU()
 
         # NN for injecting non reschedulable tasks
         self.hidden_injector = hidden_injector
@@ -173,42 +165,41 @@ class SC_LSTM(nn.Module):
 
         # Check for the input filtration if model is in evaluation mode
         if not self.training:
-            out, (hn_new, cn_new) = self.i_f.filter_task(x, task_type)
+            out, hn_new = self.i_f.filter_task(x, task_type)
 
             if task_type == 'non-resched':
                 return out
 
             elif task_type == 'resched':
-                out = self.o_f.filter_task(x, out, (hn_new, cn_new), free_time_slots)
+                out = self.o_f.filter_task(x, out, hn_new, free_time_slots)
                 return out
 
         elif self.training:
-            # If we need to train only lstm use lstm and linear layer
-            if self.train_mode == "lstm":
-                out, (hn, cn) = self.lstm(x, (self.hn, self.cn))
+            # If we need to train only gru use gru and linear layer
+            if self.train_mode == "gru":
+                out, hn = self.gru(x, self.hn)
 
-                # Reinitialize hidden and cell states as new hn and cn by copying them
+                # Reinitialize hidden state by copying
                 if save_states:
                     self.hn = hn.detach()
-                    self.cn = cn.detach()
 
-                out = self.lstm_linear(out)
-                out = self.lstm_lin_activation(out)
+                out = self.gru_linear(out)
+                out = self.gru_lin_activation(out)
                 return out
 
             # If we need to train only injector use injector and freezed pretrained linear
             elif self.train_mode == "injector":
                 out = self.injector(x)
-                out = self.lstm_linear(out)
-                out = self.lstm_lin_activation(out)
+                out = self.gru_linear(out)
+                out = self.gru_lin_activation(out)
                 return out
 
 
 
-    def train_lstm(self):
+    def train_gru(self):
         """
-        This function sets the model to train only lstm
-         and lstm_linear layers. It is first step of training
+        This function sets the model to train only gru
+         and gru_linear layers. It is first step of training
          where only reschedulable tasks are used.
         :return: None
         """
@@ -216,13 +207,13 @@ class SC_LSTM(nn.Module):
         for param in self.injector.parameters():
             param.requires_grad = False
 
-        # Unfreeze lstm and lstm_linear layers
-        frozen_layers = [self.lstm, self.lstm_linear, self.lstm_lin_activation]
+        # Unfreeze gru and gru_linear layers
+        frozen_layers = [self.gru, self.gru_linear, self.gru_lin_activation]
         for layer in frozen_layers:
             for param in layer.parameters():
                 param.requires_grad = True
 
-        self.train_mode = "lstm"
+        self.train_mode = "gru"
 
 
 
@@ -233,8 +224,8 @@ class SC_LSTM(nn.Module):
          where only non-reschedulable tasks are used.
         :return: None
         """
-        # To train injector we need to freeze lstm and lstm_linear layers
-        frozen_layers = [self.lstm, self.lstm_linear, self.lstm_lin_activation]
+        # To train injector we need to freeze gru and gru_linear layers
+        frozen_layers = [self.gru, self.gru_linear, self.gru_lin_activation]
         for layer in frozen_layers:
             for param in layer.parameters():
                 param.requires_grad = False
@@ -256,7 +247,7 @@ class SC_LSTM(nn.Module):
         for param in self.parameters():
             param.requires_grad = False
         # Call the original eval() function
-        super(SC_LSTM, self).eval()
+        super(SC_GRU, self).eval()
 
 
 
@@ -271,7 +262,7 @@ class SC_LSTM(nn.Module):
             param.requires_grad = True
 
         # Call the original train() function
-        super(SC_LSTM, self).train(True)
+        super(SC_GRU, self).train(True)
 
 
 
@@ -280,11 +271,9 @@ class SC_LSTM(nn.Module):
         This function resets the hidden and cell states of the model to zeros.
         :return: None
         """
-        self.hn = torch.zeros(self.lstm_layers, self.batch_size, self.hidden)         # LSTM intermediate result
-        self.cn = torch.zeros(self.lstm_layers, self.batch_size, self.hidden)          # LSTM intermediate result
+        self.hn = torch.zeros(self.gru_layers, self.batch_size, self.hidden)         # GRU intermediate result
         if self.batch_size == 1:
             self.hn = self.hn.squeeze(1)
-            self.cn = self.cn.squeeze(1)
 
 
 
@@ -299,27 +288,23 @@ class SC_LSTM(nn.Module):
 
     def get_states(self):
         """
-        Returns current hidden and cell states of the model.
+        Returns current hidden state of the model.
         :return:
         """
-        return self.hn, self.cn
+        return self.hn
 
 
-    def set_states(self, hn, cn):
+    def set_states(self, hn):
         """
         Sets hidden and cell states of the model.
         :param hn: hidden state
-        :param cn: cell state
         :return: None
         """
         # Convert to tensors with appropriate dtype if they are not
         if not isinstance(hn, torch.Tensor):
             hn = torch.tensor(hn).type(torch.float32)
-        if not isinstance(cn, torch.Tensor):
-            cn = torch.tensor(cn).type(torch.float32)
 
         # Set states
         self.hn = hn
-        self.cn = cn
 
 
