@@ -7,17 +7,20 @@ from aiogram.utils import executor
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import config as config
-from adapters import orm, repositories
+import numpy as np
 
-from states.states import (
+import tg_bot.config as config
+from tg_bot.adapters import orm, repositories
+
+from tg_bot.states.states import (
     GetBasicInfo,
     GetTaskInfo,
     GetEventInfo,
     MarkHistory,
 )
-from lexicon.lexicon import lexicon, get_lexicon_with_argument
-from utils.utils import (
+from tg_bot.lexicon.lexicon import lexicon, get_lexicon_with_argument
+from tg_bot.utils.utils import (
+    parse_numpy_arr,
     parse_user,
     parse_task,
     parse_int,
@@ -29,10 +32,12 @@ from utils.utils import (
     parse_int_in_range,
     check_repeat_each_argument,
 )
-from adapters.repositories import get_events_repo, get_tasks_repo, get_users_repo
+from tg_bot.adapters.repositories import get_events_repo, get_tasks_repo, get_users_repo
 
-from keyboards.keyboards import get_active_tasks_keyboard
-from domain.domain import Task
+from tg_bot.keyboards.keyboards import get_active_tasks_keyboard
+from tg_bot.domain.domain import Task
+
+from Structure.plan import Planner
 
 import datetime
 import os
@@ -41,7 +46,8 @@ import logging
 API_TOKEN: str = os.getenv("TGTOKEN")
 
 # Number of hours that represents part of time for model to predict data
-ALPHA: int = 24
+ALPHA: int = 24i
+PLANNER: Planner = Planner()
 
 if API_TOKEN is None:
     logging.error(
@@ -127,11 +133,17 @@ async def get_end_day(message: Message, state: FSMContext):
     async with state.proxy() as data:
         data["end_time"] = time
 
+        history, context = PLANNER.scheduler.get_states()
+
+        history_str, context_str = ' '.join(map(str, history)), ' '.join(map(str, context))
+
         user = parse_user(
             user_id=message.from_id,
             user_name=data.get('user_name'),
             start_time=data.get('start_time'),
-            end_time=data.get('end_time')
+            end_time=data.get('end_time'),
+            history=history_str,
+            context=context_str
         )
 
     if user is None:
@@ -613,16 +625,55 @@ def plan_new_schedule(message: Message, state: FSMContext):
 
     message_text = message.text
 
+    task_repo = get_tasks_repo()
+    event_repo = get_events_repo()
+    user_repo = get_users_repo()
+
     """Gathering unscheduled tasks and events"""
 
-    pass
+    try:
+        user = user_repo.get_user_by_id(message.from_id)i
+
+        if user is None:
+            raise ValueError("Could not find user that made message")
+
+    except Exception as e:
+        logging.error(get_lexicon_with_argument('error', e.args))
+
+    user_history, user_context = parse_numpy_arr(user_history), parse_numpy_arr(user_context)
+
+    tasks = None
+    events = None
 
     """Sending to model"""
 
-    pass
+    new_schedule, user_h, user_c = PLANNER.get_model_schedule(tasks, events, user_history, user_context)
 
     """Gathering and saving generated information"""
 
-    pass
+    for new_task_info in new_schedule:
+        try:
+            task = task_repo.get_task_by_id(task_id=new_task_info['task_id'], user_id=message.from_id)
+
+            if task is None:
+                logging.warning("Got unexpected output from db")
+                continue
+
+            task.predicted_start = new_task_info['predicted_start_time']
+            task.predicted_offset = new_task_info['predicted_offset']
+            task.predicted_date = new_task_info['predicted_date']
+            task.predicted_duration = new_task_info['predicted_duration']
+
+            task_repo.add_task(task)
+        except Exception as e:
+            logging.error(get_lexicon_with_argument('error', e.args))
+            await message.answer(lexicon['en']['retry_trouble'])
+            continue
 
     """Replying to user"""
+
+    tasks = None
+    events = None
+
+    await message.answer(lexicon['en']['plan'])
+    await message.answer(PLANNER.print_schedule(tasks, events))

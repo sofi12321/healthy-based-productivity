@@ -1,5 +1,6 @@
 import datetime
 import logging
+import numpy as np
 from typing import TypeAlias, Optional, Tuple, List
 from domain.domain import Task, Event, BasicUserInfo
 
@@ -24,6 +25,14 @@ EventTuple: TypeAlias = Tuple[
 
 # Mark History
 IsDone: TypeAlias = bool
+
+
+def parse_numpy_arr(numpy_arr_str: str) -> Optional[np.float32]:
+    if not isinstance(numpy_arr_str, str):
+        logging.warning("Got unexpected type")
+        return None
+
+    return np.fromstring(numpy_arr_str, dtype=float, sep=' ')
 
 
 def day_of_week(day_str: str) -> Optional[int]:
@@ -314,8 +323,8 @@ def parse_start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndT
 """
 
 
-def parse_user(user_id: int, user_name: str, start_time: datetime.time, end_time: datetime.time) -> Optional[BasicUserInfo]:
-    if not isinstance(user_id, int) or not isinstance(user_name, str) or not isinstance(start_time, datetime.time) or not isinstance(end_time, datetime.time):
+def parse_user(user_id: int, user_name: str, start_time: datetime.time, end_time: datetime.time, history: str, context: str) -> Optional[BasicUserInfo]:
+    if not isinstance(user_id, int) or not isinstance(user_name, str) or not isinstance(start_time, datetime.time) or not isinstance(end_time, datetime.time) or not isinstance(history, str) or not isinstance(context, str):
         logging.warning("Got unexpected type")
         return None
 
@@ -323,7 +332,9 @@ def parse_user(user_id: int, user_name: str, start_time: datetime.time, end_time
         telegram_id=user_id,
         user_name=user_name,
         start_time=start_time,
-        end_time=end_time
+        end_time=end_time,
+        history=history,
+        context=context
     )
 
 

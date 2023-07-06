@@ -28,6 +28,8 @@ users_table = Table(
     Column("user_name", Text, nullable=False),
     Column("start_time", Time, nullable=False),
     Column("end_time", Time, nullable=False),
+    Column("history", Text, nullable=False),
+    Column("context", Text, nullable=False),
 )
 
 tasks_table = Table(
@@ -52,6 +54,7 @@ tasks_table = Table(
 
     Column("predicted_start", Time, nullable=True),
     Column("predicted_offset", Integer, nullable=True),
+    Column("predicted_duration", Integer, nullable=False),
     Column("predicted_date", Date, nullable=True),
 
     # Constraints
