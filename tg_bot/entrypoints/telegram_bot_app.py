@@ -625,6 +625,8 @@ def plan_new_schedule(message: Message, state: FSMContext):
 
     message_text = message.text
 
+    await message.answer(lexicon['en']['plan'])
+
     task_repo = get_tasks_repo()
     event_repo = get_events_repo()
     user_repo = get_users_repo()
@@ -642,8 +644,13 @@ def plan_new_schedule(message: Message, state: FSMContext):
 
     user_history, user_context = parse_numpy_arr(user_history), parse_numpy_arr(user_context)
 
-    tasks = None
-    events = None
+    current_time = datetime.datetime.now()
+
+    tasks = task_repo.get_task_in_range(message.from_id, ALPHA, current_time.date(), current_time.time())
+    events = event_repo.get_events_in_range(message.from_id, ALPHA, current_time,date(), current_time.time())
+
+    tasks = list(filter(lambda task: task.predicted_date is not None, tasks))
+    events = list(filter(lambda event: event.predicted_date is not None, events))
 
     """Sending to model"""
 
@@ -672,8 +679,7 @@ def plan_new_schedule(message: Message, state: FSMContext):
 
     """Replying to user"""
 
-    tasks = None
-    events = None
+    tasks = task_repo.get_task_in_range(message.from_id, ALPHA, current_time.date(), current_time.time())
+    events = event_repo.get_events_in_range(message.from_id, ALPHA, current_time,date(), current_time.time())
 
-    await message.answer(lexicon['en']['plan'])
     await message.answer(PLANNER.print_schedule(tasks, events))
