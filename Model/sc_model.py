@@ -1,111 +1,6 @@
 import torch
 import torch.nn as nn
 from Data.converter import Converter as Conv
-import numpy as np
-
-
-class InFilter:
-    def __init__(self, model):
-        """
-        Simple initialization of the class
-        :param model: the initial model object
-        """
-        self.model = model
-
-    def filter_task(self, x, task_type):
-        """
-        This function change the model behavior depending on the task type.
-        :param x: input feature vector
-        :param task_type: 'resched', 'non-resched' need fo varying forward pass
-        :return: y: output feature vector in case of non-reschedulable task or
-        y and model states in case of reschedulable task (for further output filtration).
-        """
-        # If the task is not reschedulable,
-        if task_type == 'non-resched':
-            h_new = self.model.injector(x)
-
-            # Forward the model but making it "thinking" that it returns h_new
-            _, (_, cn_new) = self.model.lstm(x, (self.model.hn, self.model.cn))
-            self.model.hn = h_new
-            self.model.cn = cn_new
-
-            # Return not modified task times
-            duration = x[1]
-            date = x[3]
-            offset = 0
-            model_out = self.model.conv.user_to_model(date, duration, offset)
-
-            return model_out
-
-        # If the task is reschedulable, just forward the lstm and linear layers
-        elif task_type == 'resched':
-            out, (hn_new, cn_new) = self.model.lstm(x, (self.model.hn, self.model.cn))
-            out = self.model.lstm_linear(out)
-            out = self.model.lstm_lin_activation(out)
-            return out, (hn_new, cn_new)
-
-
-
-
-
-class Out_Filter:
-    def __init__(self, out_features, model):
-        """
-        Simple constructor of the output filter.
-        :param out_features:
-        :param model:
-        """
-        self.out_features = out_features
-        self.model = model
-
-
-    def filter_task(self, x, out, model_state, free_time_slots):
-        """
-        This function change the model behavior depending on its output.
-        :param x: input feature vector
-        :param out: initial model prediction from input filtration.
-        :param free_time_slots: free time available in next `pred_interval` to insert the task.
-        :param model_state: model states (hidden and cell states)
-        :return: y: output feature vector
-        """
-        (hn_new, cn_new) = model_state
-
-        # Check for the output filtration until it give feasible solution
-        while True:
-            out_check = self.__check_overlay(out, free_time_slots)
-
-            # If the output is feasible, set new hidden and cell states and return the output
-            if out_check:
-                self.model.hn = hn_new
-                self.model.cn = cn_new
-                return out
-
-            # Else forward the model with the previous hidden and cell states
-            #TODO: maybe slightly modify h or c or x for network to not create the same output
-            out = self.model.lstm(x, (self.model.hn, self.model.cn))
-            out = self.model.lstm_linear(out)
-
-
-    def __check_overlay(self, times, free_time_slots):
-        """
-        This function checks if the scheduled task fit in available time slots.
-        :param times: tuple of (start, end, refr) times of the scheduled task
-        :param free_time_slots: normalized array of
-            free time slots [[0.0, 0.02], [0.07, 0.2], ...]
-        :return:
-        """
-        pred_interval = self.model.pred_interval
-        start, end, refr = times
-
-        # Check if the scheduled task fit in available time slots
-        for time_slot in free_time_slots:
-            if time_slot[0] <= start <= time_slot[1] and time_slot[0] <= end <= time_slot[1] and start > refr:
-                return True
-
-        return False
-
-
-
 
 
 class SC_LSTM(nn.Module):
@@ -145,8 +40,6 @@ class SC_LSTM(nn.Module):
         self.__init_weights()
 
         # Objects declaration
-        self.i_f = InFilter(self)
-        self.o_f = Out_Filter(out_features, self)
         self.conv = Conv(self.pred_interval)
         self.lstm = nn.LSTM(in_features, hidden, lstm_layers, batch_first=True)
         self.lstm_linear = nn.Linear(hidden, out_features)
@@ -173,14 +66,13 @@ class SC_LSTM(nn.Module):
 
         # Check for the input filtration if model is in evaluation mode
         if not self.training:
-            out, (hn_new, cn_new) = self.i_f.filter_task(x, task_type)
 
             if task_type == 'non-resched':
-                return out
+                return self.__plan_non_resched(x)
 
             elif task_type == 'resched':
-                out = self.o_f.filter_task(x, out, (hn_new, cn_new), free_time_slots)
-                return out
+                return self.__plan_resched(x, free_time_slots)
+
 
         elif self.training:
             # If we need to train only lstm use lstm and linear layer
@@ -202,6 +94,66 @@ class SC_LSTM(nn.Module):
                 out = self.lstm_linear(out)
                 out = self.lstm_lin_activation(out)
                 return out
+
+
+
+    def __plan_non_resched(self, x):
+        h_new = self.injector(x)
+
+        # Forward the model but making it "thinking" that it returns h_new
+        _, (_, cn_new) = self.lstm(x, (self.hn, self.cn))
+        self.hn = h_new
+        self.cn = cn_new
+
+        # Return not modified task times
+        duration = x[1]
+        date = x[3]
+        offset = 0
+        model_out = self.conv.user_to_model(date, duration, offset)
+        return model_out
+
+
+
+    def __plan_resched(self, x, free_time_slots):
+        out, (hn_new, cn_new) = self.lstm(x, (self.hn, self.cn))
+        out = self.lstm_linear(out)
+        out = self.lstm_lin_activation(out)
+
+        # Check for the output filtration until it give feasible solution
+        # TODO: REWRITE THIS PART
+        while True:
+            out_check = self.__check_overlay(out, free_time_slots)
+
+            # If the output is feasible, set new hidden and cell states and return the output
+            if out_check:
+                self.hn = hn_new
+                self.cn = cn_new
+                return out
+
+            # Else forward the model with the previous hidden and cell states
+            #TODO: maybe slightly modify h or c or x for network to not create the same output
+            out = self.lstm(x, (self.hn, self.cn))
+            out = self.lstm_linear(out)
+
+
+
+    def __check_overlay(self, times, free_time_slots):
+        """
+        This function checks if the scheduled task fit in available time slots.
+        :param times: tuple of (start, end, refr) times of the scheduled task
+        :param free_time_slots: normalized array of
+            free time slots [[0.0, 0.02], [0.07, 0.2], ...]
+        :return:
+        """
+        pred_interval = self.pred_interval
+        start, end, refr = times
+
+        # Check if the scheduled task fit in available time slots
+        for time_slot in free_time_slots:
+            if time_slot[0] <= start <= time_slot[1] and time_slot[0] <= end <= time_slot[1] and start > refr:
+                return True
+
+        return False
 
 
 
@@ -297,12 +249,14 @@ class SC_LSTM(nn.Module):
             nn.init.normal_(param)
 
 
+
     def get_states(self):
         """
         Returns current hidden and cell states of the model.
         :return:
         """
         return self.hn, self.cn
+
 
 
     def set_states(self, hn, cn):
@@ -323,3 +277,30 @@ class SC_LSTM(nn.Module):
         self.cn = cn
 
 
+
+    def __output_filter_task(self, x, out, model_state, free_time_slots):
+        """
+        This function change the model behavior depending on its output.
+        :param x: input feature vector
+        :param out: initial model prediction from input filtration.
+        :param free_time_slots: free time available in next `pred_interval` to insert the task.
+        :param model_state: model states (hidden and cell states)
+        :return: y: output feature vector
+        """
+        (hn_new, cn_new) = model_state
+
+        # Check for the output filtration until it give feasible solution
+        # TODO: MAKE IT DIFFERENTLY
+        while True:
+            out_check = self.__check_overlay(out, free_time_slots)
+
+            # If the output is feasible, set new hidden and cell states and return the output
+            if out_check:
+                self.hn = hn_new
+                self.cn = cn_new
+                return out
+
+            # Else forward the model with the previous hidden and cell states
+            #TODO: maybe slightly modify h or c or x for network to not create the same output
+            out = self.lstm(x, (self.hn, self.cn))
+            out = self.lstm_linear(out)
