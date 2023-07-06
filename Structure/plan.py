@@ -193,14 +193,14 @@ class Planner:
 
         return prediction, new_h, new_c
 
-    def convert_output_to_schedule(self, model_output) -> [datetime.date, datetime.time, int]:
+    def convert_output_to_schedule(self, model_output) -> [datetime.date, datetime.time, int, int]:
         """
         Reformat data from vector relative data into date, start time and offset.
-        :param model_output: TODO: vector of 2 or 3 numbers
+        :param model_output: TODO: vector
         :return: scheduling parameters of the event in a specified format
         """
         # TODO: Danila
-        return [None, None, None]
+        return [None, None, 0, 0]
 
     def fill_schedule(self, task_id: int, output: [datetime.date, datetime.time, int]):
         """
