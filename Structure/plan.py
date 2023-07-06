@@ -24,9 +24,8 @@ class Planner:
 
     def label_handling(self, task_name: str) -> int:
         """
-        Converts event names from natural language to a vector of category membership:
+        Converts event names from natural language to a number of category:
         "Daily Routine", "Passive Rest", "Physical Activity", "Work-study".
-        0 if it does not belong to the class, 1 if it does.
 
         :param task_name: string, name of the event
         :return: number of group belonging
@@ -114,7 +113,8 @@ class Planner:
         return {'task_id': task_id,
                 'predicted_date': output[0],
                 'predicted_start_time': output[1],
-                'predicted_offset': output[2]}
+                'predicted_durtion': output[2]
+                'predicted_offset': output[3]}
 
     def sort_tasks(self, tasks):
         """
