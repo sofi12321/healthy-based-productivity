@@ -2,6 +2,7 @@ import datetime
 from dir1.bot_classes import Task, Event
 from Model.sc_model import SC_LSTM
 from torch import load
+import re
 
 
 class Planner:
@@ -21,17 +22,17 @@ class Planner:
         # Set the model to evaluation mode
         self.scheduler.eval()
 
-    def label_handling(self, task_name: str) -> [int, int, int, int]:
+    def label_handling(self, task_name: str) -> int:
         """
         Converts event names from natural language to a vector of category membership:
         "Daily Routine", "Passive Rest", "Physical Activity", "Work-study".
         0 if it does not belong to the class, 1 if it does.
 
         :param task_name: string, name of the event
-        :return: vector, length 4, event group belonging
+        :return: number of group belonging
         """
         # TODO: Danila
-        label = [0, 0, 0, 0]
+        label = 0
         return label
 
     def preprocess_event(self, event: Event, label: [int, int, int, int]):
@@ -57,6 +58,14 @@ class Planner:
         # TODO: Yaroslav
         result = label + [task.duration, task.importance]
         return result
+
+    def get_available_time_slots(self):
+        # TODO: Yaroslav
+        return []
+
+    def update_available_time_slots(self, task_event):
+        # TODO: Yaroslav
+        return []
 
     def call_model(self, task_type, input_features, available_time_slots, user_h, user_c):
         """
@@ -190,16 +199,45 @@ class Planner:
         """
         # tasks = [Task, Task, Task, ...]
         # events = [Event, Event, Event, ...]
-        return """Your schedule for today"""
+        # "Daily Routine", "Passive Rest", "Physical Activity", "Work-study"
+        smiles = ['🏡', '🎨', '💪', '✍', '📌']
+        output_schedule = "Your schedule:\n"
+        base = """SMILE NAME\n🕐 START - END"""
+        additional = "\n🏖 ADD_MIN min to finalize the task"
+        final = "\n\n"
 
-    def get_available_time_slots(self):
-        # TODO: Yaroslav
-        return []
+        order = {}
+        for task in range(len(tasks)):
+            order[tasks[task].predicted_start_time] = ['task', tasks[task]]
+        for event in range(len(events)):
+            order[events[event].start_time] = ['event', events[event]]
 
-    def update_available_time_slots(self, task_event):
-        # TODO: Yaroslav
-        return []
+        sorted_order = sorted(order.keys())
 
+        for t in sorted_order:
+            output_task = ""
+            if order[t][0] == 'event':
+                output_task = re.sub("SMILE", smiles[-1], base)
+                output_task = re.sub("NAME", order[t][1].event_name, output_task)
+                output_task = re.sub("START", order[t][1].start_time.strftime("%H:%M"), output_task)
+                output_task = re.sub("END", (
+                            datetime.datetime.combine(order[t][1].date, order[t][1].start_time) + datetime.timedelta(
+                        minutes=order[t][1].duration)).strftime("%H:%M"), output_task)
+
+            elif order[t][0] == 'task':
+                output_task = re.sub("SMILE", smiles[self.label_handling(order[t][1].task_name)], base)
+                output_task = re.sub("NAME", order[t][1].task_name, output_task)
+                output_task = re.sub("START", order[t][1].predicted_start_time.strftime("%H:%M"), output_task)
+                output_task = re.sub("END", (datetime.datetime.combine(order[t][1].predicted_date,
+                                                                       order[t][1].predicted_start_time)
+                                             + datetime.timedelta(
+                                             minutes=order[t][1].predicted_duration)).strftime("%H:%M"), output_task)
+
+                if order[t][1].predicted_offset > 5:
+                    output_task += re.sub("ADD_MIN", order[t][1].predicted_offset, additional)
+                output_task += final
+            output_schedule+=output_task
+        return output_schedule
 
 
 if __name__ == '__main__':
