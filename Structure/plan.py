@@ -90,9 +90,9 @@ class Planner:
             return 0
         y_pred = self.nlp_model.predict(words)
         label = np.argmax(y_pred, axis=1)
-        if type(text_task) == str:
+        if type(task_name) == str:
             return label[0]
-        elif type(text_task) == type([]):
+        elif type(task_name) == type([]):
             return label
 
     def preprocess_event(self, event: Event, label: [int, int, int, int]):
