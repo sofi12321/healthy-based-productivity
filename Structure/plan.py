@@ -107,9 +107,10 @@ class Planner:
         # TODO: Yaroslav
         return available_time_slots
 
-    def preprocess_event(self, event: Event, label: int):
+    def preprocess_event(self, event: Event, label: int, plan_time):
         """
         Processes the data about the task into the machine-understandable format.
+        :param plan_time: time when user call /plan
         :param label: vector of category
         :param event: object of class Task
         :return:
@@ -127,7 +128,8 @@ class Planner:
                                         hour=event.start_time.hour,
                                         minute=event.start_time.minute),
             duration=event.duration,
-            offset=0
+            offset=0,
+            current_date=plan_time
         )
 
         return input_vector, activity_type, output_vector
@@ -150,10 +152,11 @@ class Planner:
 
         return tasks_3 + tasks_2 + tasks_1 + tasks_0
 
-    def preprocess_task(self, task: Task, label: int):
+    def preprocess_task(self, task: Task, label: int, plan_time):
         """
         Processes the data about the event into the machine-understandable format.
 
+        :param plan_time:
         :param label: vector of category
         :param task: object of class Task
         :return:
@@ -215,7 +218,7 @@ class Planner:
         return {'task_id': task_id,
                 'predicted_date': output[0],
                 'predicted_start_time': output[1],
-                'predicted_durtion': output[2],
+                'predicted_duration': output[2],
                 'predicted_offset': output[3]}
 
     def get_model_schedule(self, tasks, events, user_h, user_c):
@@ -224,17 +227,19 @@ class Planner:
 
         :param tasks: list of objects of class Task that were not planned before
         :param events: list of objects of class Event that were not planned before
+        :param user_h: user history from model 
+        :param user_c: user context from model
         :return: list of dictionaries
         """
         # tasks = [Task, Task, Task, ...]
         # events = [Event, Event, Event, ...]
         resulted_schedule = []
-        plan_time = datetime.datetime.now()
+        plan_time = datetime.datetime.now().replace(second=0, microsecond=0)
         available_time_slots = self.set_available_time_slots(tasks, events)
 
         for event in events:
             label = self.label_handling(event.event_name)
-            input_vector, activity_type, output_vector = self.preprocess_event(event, label)
+            input_vector, activity_type, output_vector = self.preprocess_event(event, label, plan_time)
             _, user_h, user_c = self.call_model(input_vector, activity_type, available_time_slots,
                                                 user_h, user_c)
             available_time_slots = self.update_available_time_slots(event, available_time_slots)
@@ -243,7 +248,7 @@ class Planner:
 
         for task in tasks:
             label = self.label_handling(task.task_name)
-            input_vector, activity_type, _ = self.preprocess_task(task, label)
+            input_vector, activity_type, _ = self.preprocess_task(task, label, plan_time)
             model_output, user_h, user_c = self.call_model(activity_type, input_vector, available_time_slots,
                                                            user_h, user_c)
             result = self.convert_output_to_schedule(model_output)
