@@ -58,14 +58,6 @@ class Planner:
         result = label + [task.duration, task.importance]
         return result
 
-    def get_available_time_slots(self):
-        # TODO: Yaroslav
-        return []
-
-    def update_available_time_slots(self, task_event):
-        # TODO: Yaroslav
-        return []
-
     def call_model(self, task_type, input_features, available_time_slots, user_h, user_c):
         """
         Perform scheduling for an event or event.
@@ -199,6 +191,15 @@ class Planner:
         # tasks = [Task, Task, Task, ...]
         # events = [Event, Event, Event, ...]
         return """Your schedule for today"""
+
+    def get_available_time_slots(self):
+        # TODO: Yaroslav
+        return []
+
+    def update_available_time_slots(self, task_event):
+        # TODO: Yaroslav
+        return []
+
 
 
 if __name__ == '__main__':
