@@ -1,7 +1,12 @@
 import datetime
-from dir1.bot_classes import Task, Event
+
+import pandas as pd
+from tg_bot.domain.domain import Task, Event
 from Model.sc_model import SC_LSTM
+from Data.converter import Converter
+from Data.Preprocessor import Preprocessor
 from torch import load
+
 
 class Planner:
     def __init__(self):
@@ -20,7 +25,10 @@ class Planner:
         # Set the model to evaluation mode
         self.scheduler.eval()
 
-    def label_handling(self, task_name: str) -> [int, int, int, int]:
+        self.converter = Converter(alpha=1440)
+        self.preprocessor = Preprocessor()
+
+    def label_handling(self, task_name: str) -> int:
         """
         Converts event names from natural language to a vector of category membership:
         "Daily Routine", "Passive Rest", "Physical Activity", "Work-study".
@@ -31,31 +39,52 @@ class Planner:
         """
         # TODO: Danila
         label = [0, 0, 0, 0]
-        return label
+        return max(label)
 
-    def preprocess_event(self, event: Event, label: [int, int, int, int]):
+    def preprocess_event(self, event: Event, label: int):
         """
         Processes the data about the task into the machine-understandable format.
-
         :param label: vector of category
         :param event: object of class Task
-        :return: vector of input features describing given task
+        :return:
+            - vector of input features describing given event,
+            - type of the event (non-resched),
+            - vector of output features describing given event,
+            - time when the event was planned by user
         """
-        # TODO: Yaroslav
-        result = label + [event.duration]
-        return result
+        input_vector = self.preprocessor.preprocess_event(event, label)
+        activity_type = "non-resched"
+        output_vector = self.converter.user_to_model(
+            task_date=datetime.datetime(year=event.date.year,
+                                        month=event.date.month,
+                                        day=event.date.day,
+                                        hour=event.start_time.hour,
+                                        minute=event.start_time.minute),
+            duration=event.duration,
+            offset=0
+        )
+        plan_time = datetime.datetime.now()
 
-    def preprocess_task(self, task: Task, label: [int, int, int, int]):
+        return input_vector, activity_type, output_vector, plan_time
+
+    def preprocess_task(self, task: Task, label: int):
         """
         Processes the data about the event into the machine-understandable format.
 
         :param label: vector of category
         :param task: object of class Task
-        :return: vector of input features describing given event
+        :return:
+            - vector of input features describing given task,
+            - type of the task (resched),
+            - vector of output features describing given task (None for resched),
+            - time when the task was planned by user
         """
-        # TODO: Yaroslav
-        result = label + [task.duration, task.importance]
-        return result
+        input_vector = self.preprocessor.preprocess_task(task, label)
+        activity_type = "resched"
+        output_vector = None
+        plan_time = datetime.datetime.now()
+
+        return input_vector, activity_type, output_vector, plan_time
 
     def call_model(self, task_type, input_features, available_time_slots, user_h, user_c):
         """
@@ -112,7 +141,17 @@ class Planner:
         :param tasks: list of objects of class Task
         :return: sorted list of this tasks
         """
-        return tasks
+        tasks_0 = [task for task in tasks if task.importance == 0]
+        tasks_1 = [task for task in tasks if task.importance == 1]
+        tasks_2 = [task for task in tasks if task.importance == 2]
+        tasks_3 = [task for task in tasks if task.importance == 3]
+
+        tasks_0.sort(key=lambda x: (x.date, x.start_time))
+        tasks_1.sort(key=lambda x: (x.date, x.start_time))
+        tasks_2.sort(key=lambda x: (x.date, x.start_time))
+        tasks_3.sort(key=lambda x: (x.date, x.start_time))
+
+        return tasks_3 + tasks_2 + tasks_1 + tasks_0
 
     def get_model_schedule(self, tasks, events):
         """
@@ -129,14 +168,15 @@ class Planner:
         for event in events:
             label = self.label_handling(event.event_name)
             input_features = self.preprocess_event(event, label)
-            self.call_model("event", input_features)            # TODO: Ilnur pass available_time_slots, user_h, user_c parameters
+            self.call_model("event", input_features)  # TODO: Ilnur pass available_time_slots, user_h, user_c parameters
 
         tasks = self.sort_tasks(tasks)
 
         for task in tasks:
             label = self.label_handling(task.task_name)
             input_features = self.preprocess_task(task, label)
-            model_output = self.call_model("event", input_features)     # TODO: Ilnur pass available_time_slots, user_h, user_c parameters
+            model_output = self.call_model("event",
+                                           input_features)  # TODO: Ilnur pass available_time_slots, user_h, user_c parameters
             result = self.convert_output_to_schedule(model_output)
             resulted_schedule.append(self.fill_schedule(task.task_id, result))
         return resulted_schedule
@@ -186,6 +226,7 @@ class Planner:
         # tasks = [Task, Task, Task, ...]
         # events = [Event, Event, Event, ...]
         return """Your schedule for today"""
+
 
 if __name__ == '__main__':
     planner = Planner()

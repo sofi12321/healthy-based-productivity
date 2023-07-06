@@ -38,3 +38,9 @@ class Converter:
         #         print("Offset converted:", offset_model)
 
         return task_date_model, duration_model, offset_model
+
+
+if __name__ == '__main__':
+    convertor = Converter(alpha=1440)
+    convertor.model_to_user(time=0.5, duration=0.5, offset=0.5)
+    convertor.user_to_model(task_date=datetime(2020, 12, 12, 12, 12), duration=60, offset=30)
