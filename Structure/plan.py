@@ -1,8 +1,14 @@
-import datetime
-from dir1.bot_classes import Task, Event
-from Model.sc_model import SC_LSTM
-from torch import load
 import re
+import gdown
+import datetime
+import numpy as np
+from torch import load
+import tensorflow as tf
+import tensorflow_hub as hub
+import tensorflow_text as text
+from Model.sc_model import SC_LSTM
+from official.nlp import optimization
+from dir1.bot_classes import Task, Event
 
 
 class Planner:
@@ -22,17 +28,72 @@ class Planner:
         # Set the model to evaluation mode
         self.scheduler.eval()
 
-    def label_handling(self, task_name: str) -> int:
+        # Load NLP model 
+        self.nlp_model = self.nlp_load_model()
+        
+
+    def nlp_load_model(self):
+        """
+        Loading BERT-based task names classifier pretrained on the generated dataset
+
+        :return: model
+        """
+        # Loading BERT-based task names classifier       
+        url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
+        output = './model.json'
+        gdown.download(url, output, quiet=False)
+
+        # Loading weights of the classifier
+        url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
+        output = './model.h5'
+        gdown.download(url, output, quiet=False)
+
+        # Build model
+        json_file = open('model.json', 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        loaded_model = tf.keras.models.model_from_json(
+            loaded_model_json,
+            custom_objects={'KerasLayer':hub.KerasLayer}
+        )
+        loaded_model.load_weights("model.h5")
+
+        # Compile model
+        loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+        metrics = tf.metrics.BinaryAccuracy()
+        optimizer = optimization.create_optimizer(init_lr=3e-5,
+                                          num_train_steps=210,
+                                          num_warmup_steps=21,
+                                          optimizer_type='adamw')
+        loaded_model.compile(optimizer=optimizer, loss=loss,
+                             metrics=metrics)
+
+        return loaded_model
+
+    def label_handling(self, task_name: str):
         """
         Converts event names from natural language to a number of category:
-        "Daily Routine", "Passive Rest", "Physical Activity", "Work-study".
+        0:"Daily Routine",
+        1:"Passive Rest",
+        2:"Physical Activity",
+        3:"Work-study".
+        In case of list of task names in input, labels are generated for each task name.
 
-        :param task_name: string, name of the event
+        :param task_name: string, name of the events or list of events
         :return: number of group belonging
         """
-        # TODO: Danila
-        label = 0
-        return label
+        if type(task_name) == str:
+            words = [task_name]
+        elif type(task_name) == type([]):
+            words = task_name.copy()
+        else:
+            return 0
+        y_pred = self.nlp_model.predict(words)
+        label = np.argmax(y_pred, axis=1)
+        if type(text_task) == str:
+            return label[0]
+        elif type(text_task) == type([]):
+            return label
 
     def preprocess_event(self, event: Event, label: [int, int, int, int]):
         """
