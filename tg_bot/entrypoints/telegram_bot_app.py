@@ -661,8 +661,8 @@ async def plan_new_schedule(message: Message, state: FSMContext):
         message.from_id, ALPHA, current_time.date(), current_time.time()
     )
 
-    tasks = list(filter(lambda task: task.predicted_date is not None, tasks))
-    events = list(filter(lambda event: event.predicted_date is not None, events))
+    tasks = list(filter(lambda task: task.predicted_date is None, tasks))
+    events = list(filter(lambda event: event.predicted_date is None, events))
 
     print(tasks)
 
