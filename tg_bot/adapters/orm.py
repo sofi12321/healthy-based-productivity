@@ -16,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import registry, mapper, relationship
 import datetime
 
-from domain import domain
+from tg_bot.domain import domain
 
 mapper_registry = registry()
 metadata = mapper_registry.metadata
@@ -54,7 +54,7 @@ tasks_table = Table(
 
     Column("predicted_start", Time, nullable=True),
     Column("predicted_offset", Integer, nullable=True),
-    Column("predicted_duration", Integer, nullable=False),
+    Column("predicted_duration", Integer, nullable=True),
     Column("predicted_date", Date, nullable=True),
 
     # Constraints

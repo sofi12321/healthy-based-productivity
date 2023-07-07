@@ -1,4 +1,4 @@
-from domain import domain
+from tg_bot.domain import domain
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import Optional, List
@@ -115,6 +115,9 @@ class TasksRepository:
         return_arr = []
 
         for task in tasks:
+            if task.start_time is None:
+                return_arr.append(task)
+                continue
             task_datetime = datetime.datetime.combine(task.date, task.start_time)
             task_duration = datetime.timedelta(minutes=task.duration)
 

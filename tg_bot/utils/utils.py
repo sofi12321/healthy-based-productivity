@@ -2,7 +2,7 @@ import datetime
 import logging
 import numpy as np
 from typing import TypeAlias, Optional, Tuple, List
-from domain.domain import Task, Event, BasicUserInfo
+from tg_bot.domain.domain import Task, Event, BasicUserInfo
 
 # Task aliases
 TaskName: TypeAlias = str

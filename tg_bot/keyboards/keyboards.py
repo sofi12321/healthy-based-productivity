@@ -1,5 +1,5 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from domain.domain import Task
+from tg_bot.domain.domain import Task
 
 
 async def get_active_tasks_keyboard(active_tasks: [Task]) -> InlineKeyboardMarkup:

@@ -46,7 +46,7 @@ import logging
 API_TOKEN: str = os.getenv("TGTOKEN")
 
 # Number of hours that represents part of time for model to predict data
-ALPHA: int = 24i
+ALPHA: int = 24
 PLANNER: Planner = Planner()
 
 if API_TOKEN is None:
@@ -55,12 +55,12 @@ if API_TOKEN is None:
     )
     exit(1)
 
-engine = create_engine(config.get_db_uri('local_db/prototype_v1.db'))
+engine = create_engine(config.get_db_uri("tg_bot/local_db/prototype_v1.db"))
 get_session = sessionmaker(bind=engine)
 repositories.initialize_repositories(get_session())
 orm.start_mappers()
 
-orm.delete_all(engine)
+# orm.delete_all(engine)
 orm.create_all(engine)
 
 
@@ -94,14 +94,14 @@ async def get_user_name(message: Message, state: FSMContext):
 
     if not (1 <= len(message_text) <= 255):
         """Please retry"""
-        await message.answer(lexicon['en']['retry_name'])
+        await message.answer(lexicon["en"]["retry_name"])
         return
 
     async with state.proxy() as data:
-        data['user_name'] = message_text
+        data["user_name"] = message_text
 
     await state.set_state(GetBasicInfo.StartOfDay)
-    await message.answer(lexicon['en']['basic_info_start_of_day'])
+    await message.answer(lexicon["en"]["basic_info_start_of_day"])
 
 
 @dp.message_handler(state=GetBasicInfo.StartOfDay)
@@ -127,7 +127,7 @@ async def get_end_day(message: Message, state: FSMContext):
 
     if time is None:
         """Please retry"""
-        await message.reply(lexicon['en']['retry_time'])
+        await message.reply(lexicon["en"]["retry_time"])
         return
 
     async with state.proxy() as data:
@@ -135,20 +135,22 @@ async def get_end_day(message: Message, state: FSMContext):
 
         history, context = PLANNER.scheduler.get_states()
 
-        history_str, context_str = ' '.join(map(str, history)), ' '.join(map(str, context))
+        history_str, context_str = " ".join(map(str, history)), " ".join(
+            map(str, context)
+        )
 
         user = parse_user(
             user_id=message.from_id,
-            user_name=data.get('user_name'),
-            start_time=data.get('start_time'),
-            end_time=data.get('end_time'),
+            user_name=data.get("user_name"),
+            start_time=data.get("start_time"),
+            end_time=data.get("end_time"),
             history=history_str,
-            context=context_str
+            context=context_str,
         )
 
     if user is None:
-        logging.error(get_lexicon_with_argument('error', data.as_dict()))
-        await message.answer(lexicon['en']['retry_trouble'])
+        logging.error(get_lexicon_with_argument("error", data.as_dict()))
+        await message.answer(lexicon["en"]["retry_trouble"])
         await state.finish()
         return
 
@@ -156,24 +158,23 @@ async def get_end_day(message: Message, state: FSMContext):
         repo = get_users_repo()
         repo.add_user(user)
     except Exception as e:
-        logging.error(get_lexicon_with_argument('error', e.args))
-        await message.answer(lexicon['en']['retry_trouble'])
+        logging.error(get_lexicon_with_argument("error", e.args))
+        await message.answer(lexicon["en"]["retry_trouble"])
         await state.finish()
         return
 
-    await message.answer(lexicon['en']['write_success'])
+    await message.answer(lexicon["en"]["write_success"])
     await state.finish()
 
 
 @dp.message_handler(state="*", commands=["add_task"])
 async def add_task(message: Message, state: FSMContext):
-
     repo = get_users_repo()
     user = repo.get_user_by_id(message.from_id)
 
     if user is None:
         """Please enter '/start'"""
-        await message.answer(lexicon['en']['user_not_found'])
+        await message.answer(lexicon["en"]["user_not_found"])
         return
 
     await state.set_state(GetTaskInfo.TaskNameState)
@@ -190,7 +191,7 @@ async def get_task_name(message: Message, state: FSMContext):
 
     if not (1 <= len(message_text) <= 255):
         """Please retry"""
-        await message.answer(lexicon['en']['retry_name'])
+        await message.answer(lexicon["en"]["retry_name"])
 
     async with state.proxy() as data:
         data["task_name"] = message_text
@@ -271,19 +272,19 @@ async def get_task_date(message: Message, state: FSMContext):
     repo = get_tasks_repo()
     async with state.proxy() as data:
         task = parse_task(
-                user_id=message.from_id,
-                task_name=data.get('task_name'),
-                duration=data.get('task_duration'),
-                importance=data.get('task_importance'),
-                start_time=data.get('task_start_time'),
-                date=data.get('task_date')
-            )
+            user_id=message.from_id,
+            task_name=data.get("task_name"),
+            duration=data.get("task_duration"),
+            importance=data.get("task_importance"),
+            start_time=data.get("task_start_time"),
+            date=data.get("task_date"),
+        )
         print(task)
 
     if task is None:
         # Error
-        logging.error(get_lexicon_with_argument('error', data.as_dict()))
-        await message.answer(lexicon['en']['retry_trouble'])
+        logging.error(get_lexicon_with_argument("error", data.as_dict()))
+        await message.answer(lexicon["en"]["retry_trouble"])
         return
 
     try:
@@ -291,8 +292,8 @@ async def get_task_date(message: Message, state: FSMContext):
         print(repo.get_active_tasks(message.from_id))
     except Exception as e:
         # Error
-        logging.error(get_lexicon_with_argument('error', e.args))
-        await message.answer(lexicon['en']['retry_trouble'])
+        logging.error(get_lexicon_with_argument("error", e.args))
+        await message.answer(lexicon["en"]["retry_trouble"])
         return
 
     print(repo.get_active_tasks(message.from_id))
@@ -312,7 +313,7 @@ async def add_event(message: Message, state: FSMContext):
 
     if user is None:
         """Please enter '/start'"""
-        await message.answer(lexicon['en']['user_not_found'])
+        await message.answer(lexicon["en"]["user_not_found"])
         return
 
     await state.set_state(GetEventInfo.EventNameState)
@@ -326,7 +327,7 @@ async def get_event_name(message: Message, state: FSMContext):
 
     if not (1 <= len(message_text) <= 255):
         """Please retry"""
-        await message.answer(lexicon['en']['retry_name'])
+        await message.answer(lexicon["en"]["retry_name"])
         return
 
     async with state.proxy() as data:
@@ -361,14 +362,14 @@ async def get_event_duration(message: Message, state: FSMContext):
 
     if result is None:
         """Please retry"""
-        await message.answer(lexicon['en']['retry_int'])
+        await message.answer(lexicon["en"]["retry_int"])
         return
 
     async with state.proxy() as data:
-        data['event_duration'] = result
+        data["event_duration"] = result
 
     await state.set_state(GetEventInfo.EventDateState)
-    await message.answer(lexicon['en']['event_date'])
+    await message.answer(lexicon["en"]["event_date"])
 
 
 @dp.message_handler(state=GetEventInfo.EventDateState)
@@ -485,8 +486,8 @@ async def get_event_repeat_each_number(message: Message, state: FSMContext):
         repo = get_events_repo()
         repo.add_many_events(events)
     except Exception as e:
-        logging.error(get_lexicon_with_argument('error', e.args))
-        await message.answer(lexicon['en']['retry_trouble'])
+        logging.error(get_lexicon_with_argument("error", e.args))
+        await message.answer(lexicon["en"]["retry_trouble"])
         return
 
     await state.finish()
@@ -502,13 +503,15 @@ async def mark_history(message: Message, state: FSMContext):
 
     if user is None:
         """Please enter '/start'"""
-        await message.answer(lexicon['en']['user_not_found'])
+        await message.answer(lexicon["en"]["user_not_found"])
         return
 
     repo = get_tasks_repo()
 
     async with state.proxy() as data:
-        keyboard = await get_active_tasks_keyboard(repo.get_active_tasks(user.telegram_id))
+        keyboard = await get_active_tasks_keyboard(
+            repo.get_active_tasks(user.telegram_id)
+        )
         await message.answer(lexicon["en"]["mark_history"], reply_markup=keyboard)
 
     await state.set_state(MarkHistory.ChooseTask)
@@ -517,7 +520,7 @@ async def mark_history(message: Message, state: FSMContext):
 @dp.callback_query_handler(lambda c: "task_" in c.data, state=MarkHistory.ChooseTask)
 async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext):
     message_text: str = callback_query.message.text
-    task_id_str = callback_query.data.removeprefix('task_')
+    task_id_str = callback_query.data.removeprefix("task_")
     task_id = parse_int(task_id_str)
 
     user_id = callback_query.from_user.id
@@ -538,7 +541,9 @@ async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext)
                 Task start time: {task.start_time or "No time"}\t
                 Task date: {task.date or "No date"}\n"""
             )
-            await callback_query.message.answer(lexicon["en"]["marking_history_start_time"])
+            await callback_query.message.answer(
+                lexicon["en"]["marking_history_start_time"]
+            )
 
     await state.set_state(MarkHistory.MarkingHistoryStartTime)
 
@@ -595,7 +600,7 @@ async def marking_history_is_done(message: Message, state: FSMContext):
 
     if result is None:
         """Please retry"""
-        await message.answer(lexicon['en']['retry_yesno'])
+        await message.answer(lexicon["en"]["retry_yesno"])
         return
 
     repo = get_tasks_repo()
@@ -603,20 +608,20 @@ async def marking_history_is_done(message: Message, state: FSMContext):
     async with state.proxy() as data:
         data["is_done"] = result
 
-        task: Task = data.get('marking_task')
+        task: Task = data.get("marking_task")
 
-        task.real_start = data.get('start_time')
-        task.real_date = data.get('date', datetime.date.today())
-        task.real_duration = data.get('duration')
-        task.is_done = data.get('is_done')
+        task.real_start = data.get("start_time")
+        task.real_date = data.get("date", datetime.date.today())
+        task.real_duration = data.get("duration")
+        task.is_done = data.get("is_done")
         repo.add_task(task)
 
-    await message.answer(lexicon['en']['write_success'])
+    await message.answer(lexicon["en"]["write_success"])
     await state.finish()
 
 
-@dp.message_handler(commands=['plan'], state='*')
-def plan_new_schedule(message: Message, state: FSMContext):
+@dp.message_handler(commands=["plan"], state="*")
+async def plan_new_schedule(message: Message, state: FSMContext):
     """
     Gathering unscheduled tasks and events from user and
     sends it to model and shows new generated schedule
@@ -625,7 +630,7 @@ def plan_new_schedule(message: Message, state: FSMContext):
 
     message_text = message.text
 
-    await message.answer(lexicon['en']['plan'])
+    await message.answer(lexicon["en"]["plan"])
 
     task_repo = get_tasks_repo()
     event_repo = get_events_repo()
@@ -634,52 +639,73 @@ def plan_new_schedule(message: Message, state: FSMContext):
     """Gathering unscheduled tasks and events"""
 
     try:
-        user = user_repo.get_user_by_id(message.from_id)i
+        user = user_repo.get_user_by_id(message.from_id)
 
         if user is None:
             raise ValueError("Could not find user that made message")
 
     except Exception as e:
-        logging.error(get_lexicon_with_argument('error', e.args))
+        logging.error(get_lexicon_with_argument("error", e.args))
+        return
 
-    user_history, user_context = parse_numpy_arr(user_history), parse_numpy_arr(user_context)
+    user_history, user_context = parse_numpy_arr(user.history), parse_numpy_arr(
+        user.context
+    )
 
     current_time = datetime.datetime.now()
 
-    tasks = task_repo.get_task_in_range(message.from_id, ALPHA, current_time.date(), current_time.time())
-    events = event_repo.get_events_in_range(message.from_id, ALPHA, current_time,date(), current_time.time())
+    tasks = task_repo.get_task_in_range(
+        message.from_id, ALPHA, current_time.date(), current_time.time()
+    )
+    events = event_repo.get_events_in_range(
+        message.from_id, ALPHA, current_time.date(), current_time.time()
+    )
 
     tasks = list(filter(lambda task: task.predicted_date is not None, tasks))
     events = list(filter(lambda event: event.predicted_date is not None, events))
 
+    print(tasks)
+
     """Sending to model"""
 
-    new_schedule, user_h, user_c = PLANNER.get_model_schedule(tasks, events, user_history, user_context)
+    new_schedule, user_h, user_c = PLANNER.get_model_schedule(
+        tasks, events, user_history, user_context
+    )
+
+    print(new_schedule, user_h, user_c)
 
     """Gathering and saving generated information"""
 
     for new_task_info in new_schedule:
         try:
-            task = task_repo.get_task_by_id(task_id=new_task_info['task_id'], user_id=message.from_id)
+            task = task_repo.get_task_by_id(
+                task_id=new_task_info["task_id"], user_id=message.from_id
+            )
 
             if task is None:
                 logging.warning("Got unexpected output from db")
                 continue
 
-            task.predicted_start = new_task_info['predicted_start_time']
-            task.predicted_offset = new_task_info['predicted_offset']
-            task.predicted_date = new_task_info['predicted_date']
-            task.predicted_duration = new_task_info['predicted_duration']
+            task.predicted_start = new_task_info["predicted_start_time"]
+            task.predicted_offset = new_task_info["predicted_offset"]
+            task.predicted_date = new_task_info["predicted_date"]
+            task.predicted_duration = new_task_info["predicted_duration"]
 
             task_repo.add_task(task)
         except Exception as e:
-            logging.error(get_lexicon_with_argument('error', e.args))
-            await message.answer(lexicon['en']['retry_trouble'])
+            logging.error(get_lexicon_with_argument("error", e.args))
+            await message.answer(lexicon["en"]["retry_trouble"])
             continue
 
     """Replying to user"""
 
-    tasks = task_repo.get_task_in_range(message.from_id, ALPHA, current_time.date(), current_time.time())
-    events = event_repo.get_events_in_range(message.from_id, ALPHA, current_time,date(), current_time.time())
+    tasks = task_repo.get_task_in_range(
+        message.from_id, ALPHA, current_time.date(), current_time.time()
+    )
+    events = event_repo.get_events_in_range(
+        message.from_id, ALPHA, current_time.date(), current_time.time()
+    )
+
+    print(tasks)
 
     await message.answer(PLANNER.print_schedule(tasks, events))
