@@ -16,11 +16,9 @@ from Data.converter import Converter
 from Data.Preprocessor import Preprocessor
 from tg_bot.domain.domain import Task, Event
 
-ALPHA = 1440
-
 
 class Planner:
-    def __init__(self):
+    def __init__(self, alpha=1440):
         # TODO: All the parameters should be in configured after training
         self.scheduler = SC_LSTM(in_features=11,
                                  lstm_layers=3,
@@ -28,7 +26,7 @@ class Planner:
                                  hidden_injector=64,
                                  out_features=3,
                                  batch_size=1,
-                                 pred_interval=1440)
+                                 pred_interval=alpha)
 
         # Load model weights
         self.scheduler.load_state_dict(load('Model/sc_lstm_weights.pth'))
@@ -40,7 +38,7 @@ class Planner:
         self.nlp_model = self.nlp_load_model()
 
         # Set preprocessing objects
-        self.converter = Converter(alpha=ALPHA)
+        self.converter = Converter(alpha=alpha)
         self.preprocessor = Preprocessor()
 
     def nlp_load_model(self):
@@ -196,45 +194,40 @@ class Planner:
 
         return prediction, new_h, new_c
 
-    def convert_output_to_schedule(self, model_output) -> [datetime.date, datetime.time, int, int]:
+    def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
         """
-        Reformat data from vector relative data into date, start time and offset.
-        :param model_output: TODO: vector
-        :return: scheduling parameters of the event in a specified format
-        """
-        # TODO: Danila
-        return [None, None, 0, 0]
-
-    def fill_schedule(self, task_id: int, output: [datetime.date, datetime.time, int]):
-        """
+        Reformat data from vector relative data into date, start time, duration and offset.
         Returns the output of the scheduler in a dictionary format, usable with database.
 
-        :param task_id: id of the event in a database
-        :param output: scheduling parameters of the event
+        :param task_id: id of the task in a database
+        :param prediction: predicted scheduling parameters
+        :param plan_time: datetime when /plan was called
         :return: dictionary to save data in database
         """
-        # TODO: Danila
-        # TODO: Deside 2 or 3 output features
+        time, duration, offset = prediction
+        task_datetime_user, duration_user, offset_user = self.converter.model_to_user(time, duration, offset,
+                                                                                      current_date=plan_time)
         return {'task_id': task_id,
-                'predicted_date': output[0],
-                'predicted_start_time': output[1],
-                'predicted_duration': output[2],
-                'predicted_offset': output[3]}
+                'predicted_date': task_datetime_user.date(),
+                'predicted_start_time': task_datetime_user.time(),
+                'predicted_duration': duration_user,
+                'predicted_offset': offset_user}
 
-    def get_model_schedule(self, tasks, events, user_h, user_c):
+    def get_model_schedule(self, tasks, events, user_h, user_c,
+                           plan_time=datetime.datetime.now().replace(second=0, microsecond=0)):
         """
         Collects a scheduling data about each event to update database.
 
         :param tasks: list of objects of class Task that were not planned before
         :param events: list of objects of class Event that were not planned before
-        :param user_h: user history from model 
+        :param user_h: user history from model
         :param user_c: user context from model
+        :param plan_time: datetime when /plan was called
         :return: list of dictionaries
         """
         # tasks = [Task, Task, Task, ...]
         # events = [Event, Event, Event, ...]
         resulted_schedule = []
-        plan_time = datetime.datetime.now().replace(second=0, microsecond=0)
         available_time_slots = self.set_available_time_slots(tasks, events)
 
         for event in events:
@@ -251,8 +244,8 @@ class Planner:
             input_vector, activity_type, _ = self.preprocess_task(task, label, plan_time)
             model_output, user_h, user_c = self.call_model(activity_type, input_vector, available_time_slots,
                                                            user_h, user_c)
-            result = self.convert_output_to_schedule(model_output)
-            resulted_schedule.append(self.fill_schedule(task.task_id, result))
+            task_schedule = self.convert_output_to_schedule(task.task_id, model_output, plan_time)
+            resulted_schedule.append(task_schedule)
             available_time_slots = self.update_available_time_slots(task, available_time_slots)
         return resulted_schedule, user_h, user_c
 
