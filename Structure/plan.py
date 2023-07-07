@@ -47,6 +47,8 @@ class Planner:
 
         :return: model
         """
+
+        """
         # Loading BERT-based task names classifier
         url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
         output = './model.json'
@@ -56,7 +58,7 @@ class Planner:
         url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
         output = './model.h5'
         gdown.download(url, output, quiet=False)
-
+"""
         # Build model
         json_file = open('model.json', 'r')
         loaded_model_json = json_file.read()
@@ -123,7 +125,7 @@ class Planner:
             - vector of output features describing given event,
             - time when the event was planned by user
         """
-        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
+        input_vector = self.preprocessor.preprocess_event(event, label)
         activity_type = "non-resched"
 
         return input_vector, activity_type
@@ -228,6 +230,7 @@ class Planner:
 
         # TODO: Sofi
         not_sch_tasks, not_sch_events = tasks, events
+        print(f"not_sch_task: {not_sch_events}", f"not_sch_events: {not_sch_events}", sep='\n')
 
         for event in not_sch_events:
             label = self.label_handling(event.event_name)
@@ -244,6 +247,7 @@ class Planner:
             # start_time duration offset
             model_output, user_h, user_c = self.call_model(activity_type, input_vector, available_time_slots,
                                                            user_h, user_c)
+            print(f"Task: {task}, model_output: {model_output}")
             # TODO CHECK SHAPE model output !!!
             print(model_output)
             task_schedule = self.convert_output_to_schedule(task.task_id, model_output, plan_time)
