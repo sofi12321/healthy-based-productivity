@@ -21,7 +21,7 @@ class Planner:
     def __init__(self, alpha=1440):
         # TODO: All the parameters should be in configured after training
         self.scheduler = SC_LSTM(in_features=11,
-                                 lstm_layers=3,
+                                 lstm_layers=2,
                                  hidden=124,
                                  hidden_injector=64,
                                  out_features=3,
@@ -97,12 +97,18 @@ class Planner:
         return label[0]
 
     def set_available_time_slots(self, tasks, events):
-        # TODO: Yaroslav
-        available_time_slots = []
+        # TODO: Yaroslav, event - was scheduled and for task - predicted date
+        #
+        available_time_slots = [[0.0, 1.0]]
         return available_time_slots
 
-    def update_available_time_slots(self, task_event, available_time_slots):
-        # TODO: Yaroslav
+    def update_available_time_slots_event(self, event, available_time_slots):
+        # TODO: Yaroslav, подается реальный ивент
+        return available_time_slots
+
+    def update_available_time_slots_task(self, pred_task, available_time_slots):
+        # TODO: Yaroslav, подается предиктед
+        # TODO: pred_task = tensor shape
         return available_time_slots
 
     def preprocess_event(self, event: Event, label: int, plan_time):
@@ -117,20 +123,10 @@ class Planner:
             - vector of output features describing given event,
             - time when the event was planned by user
         """
-        input_vector = self.preprocessor.preprocess_event(event, label)
+        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
         activity_type = "non-resched"
-        output_vector = self.converter.user_to_model(
-            task_date=datetime.datetime(year=event.date.year,
-                                        month=event.date.month,
-                                        day=event.date.day,
-                                        hour=event.start_time.hour,
-                                        minute=event.start_time.minute),
-            duration=event.duration,
-            offset=0,
-            current_date=plan_time
-        )
 
-        return input_vector, activity_type, output_vector
+        return input_vector, activity_type
 
     def sort_tasks(self, tasks):
         """
@@ -163,11 +159,11 @@ class Planner:
             - vector of output features describing given task (None for resched),
             - time when the task was planned by user
         """
-        input_vector = self.preprocessor.preprocess_task(task, label)
+        # TODO: Yaroslav, план тайм добавить в обработку
+        input_vector = self.preprocessor.preprocess_task(task, label, plan_time)
         activity_type = "resched"
-        output_vector = None
 
-        return input_vector, activity_type, output_vector
+        return input_vector, activity_type
 
     def call_model(self, task_type, input_features, available_time_slots, user_h, user_c):
         """
@@ -204,7 +200,7 @@ class Planner:
         :param plan_time: datetime when /plan was called
         :return: dictionary to save data in database
         """
-        time, duration, offset = prediction
+        time, duration, offset = prediction[0], prediction[1], prediction[2]
         task_datetime_user, duration_user, offset_user = self.converter.model_to_user(time, duration, offset,
                                                                                       current_date=plan_time)
         return {'task_id': task_id,
@@ -230,23 +226,31 @@ class Planner:
         resulted_schedule = []
         available_time_slots = self.set_available_time_slots(tasks, events)
 
-        for event in events:
+        # TODO: Sofi
+        not_sch_tasks, not_sch_events = tasks, events
+
+        for event in not_sch_events:
             label = self.label_handling(event.event_name)
-            input_vector, activity_type, output_vector = self.preprocess_event(event, label, plan_time)
+            input_vector, activity_type = self.preprocess_event(event, label, plan_time)
             _, user_h, user_c = self.call_model(input_vector, activity_type, available_time_slots,
                                                 user_h, user_c)
-            available_time_slots = self.update_available_time_slots(event, available_time_slots)
+            available_time_slots = self.update_available_time_slots_event(event, available_time_slots)
 
-        tasks = self.sort_tasks(tasks)
+        not_sch_tasks = self.sort_tasks(not_sch_tasks)
 
-        for task in tasks:
+        for task in not_sch_tasks:
             label = self.label_handling(task.task_name)
-            input_vector, activity_type, _ = self.preprocess_task(task, label, plan_time)
+            input_vector, activity_type = self.preprocess_task(task, label, plan_time)
+            # start_time duration offset
             model_output, user_h, user_c = self.call_model(activity_type, input_vector, available_time_slots,
                                                            user_h, user_c)
+            # TODO CHECK SHAPE model output !!!
+            print(model_output)
             task_schedule = self.convert_output_to_schedule(task.task_id, model_output, plan_time)
             resulted_schedule.append(task_schedule)
-            available_time_slots = self.update_available_time_slots(task, available_time_slots)
+
+            # TODO: !!! YARIK
+            available_time_slots = self.update_available_time_slots_task(model_output, available_time_slots)
         return resulted_schedule, user_h, user_c
 
     def convert_history_to_output(self, real_date: datetime.date, real_start_time: datetime.time, real_duration: int,
@@ -320,7 +324,7 @@ class Planner:
 
         order = {}
         for task in tasks:
-            order[task.predicted_start_time] = ['task', task]
+            order[task.predicted_start] = ['task', task]
         for event in events:
             order[event.start_time] = ['event', event]
 
@@ -339,9 +343,9 @@ class Planner:
             elif order[t][0] == 'task':
                 output_task = re.sub("SMILE", smiles[self.label_handling(order[t][1].task_name)], base)
                 output_task = re.sub("NAME", order[t][1].task_name, output_task)
-                output_task = re.sub("START", order[t][1].predicted_start_time.strftime("%H:%M"), output_task)
+                output_task = re.sub("START", order[t][1].predicted_start.strftime("%H:%M"), output_task)
                 output_task = re.sub("END", (datetime.datetime.combine(order[t][1].predicted_date,
-                                                                       order[t][1].predicted_start_time)
+                                                                       order[t][1].predicted_start)
                                              + datetime.timedelta(
                             minutes=order[t][1].predicted_duration)).strftime("%H:%M"), output_task)
 

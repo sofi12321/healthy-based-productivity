@@ -116,16 +116,11 @@ class SC_LSTM(nn.Module):
             self.hn = hn_new.detach()
             self.cn = cn_new.detach()
 
-        # Return not modified task times
-        duration = x[1]
-        date = x[3]
-        offset = 0
-        out = self.converter.user_to_model(date, duration, offset)
-        return out
+        return None
 
 
 
-    def __plan_resched(self, x, free_time_slots, save_states):
+    def _plan_resched(self, x, free_time_slots, save_states):
         """
         A function to plan a reschedulable task. It changes
         correspondingly the behavior of the model and filter the output
@@ -137,9 +132,10 @@ class SC_LSTM(nn.Module):
         :return: y: output feature vector.
         """
 
-        out, (hn_new, cn_new) = self.lstm(x, (self.hn, self.cn))
-        out = self.lstm_linear(out)
-        out = self.lstm_lin_activation(out)
+        # out, (hn_new, cn_new) = self.lstm(x, (self.hn, self.cn))
+        # out = self.lstm_linear(out)
+        # out = self.lstm_lin_activation(out)
+        out = x
 
         # Create a coppy of free time slots
         free_time_slots = np.copy(free_time_slots)
@@ -185,11 +181,11 @@ class SC_LSTM(nn.Module):
             return out
 
         # Save the states and return not modified output if it is feasible
-        else:
-            if save_states:
-                self.hn = hn_new.detach()
-                self.cn = cn_new.detach()
-            return out
+        # else:
+        #     if save_states:
+        #         self.hn = hn_new.detach()
+        #         self.cn = cn_new.detach()
+        #     return out
 
 
 
