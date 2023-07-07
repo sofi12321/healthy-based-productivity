@@ -1,4 +1,9 @@
 torch
 numpy
 pandas
-pandas
+sqlalchemy
+aiogram
+tensorflow
+tensorflow-hub
+tensorflow-test
+tf-models-official
