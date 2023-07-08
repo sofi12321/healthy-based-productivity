@@ -1,111 +1,7 @@
 import torch
 import torch.nn as nn
-from Data.converter import Converter as Conv
 import numpy as np
-
-
-class InFilter:
-    def __init__(self, model):
-        """
-        Simple initialization of the class
-        :param model: the initial model object
-        """
-        self.model = model
-
-    def filter_task(self, x, task_type):
-        """
-        This function change the model behavior depending on the task type.
-        :param x: input feature vector
-        :param task_type: 'resched', 'non-resched' need fo varying forward pass
-        :return: y: output feature vector in case of non-reschedulable task or
-        y and model states in case of reschedulable task (for further output filtration).
-        """
-        # If the task is not reschedulable,
-        if task_type == 'non-resched':
-            h_new = self.model.injector(x)
-
-            # Forward the model but making it "thinking" that it returns h_new
-            _, (_, cn_new) = self.model.lstm(x, (self.model.hn, self.model.cn))
-            self.model.hn = h_new
-            self.model.cn = cn_new
-
-            # Return not modified task times
-            duration = x[1]
-            date = x[3]
-            offset = 0
-            model_out = self.model.conv.user_to_model(date, duration, offset)
-
-            return model_out
-
-        # If the task is reschedulable, just forward the lstm and linear layers
-        elif task_type == 'resched':
-            out, (hn_new, cn_new) = self.model.lstm(x, (self.model.hn, self.model.cn))
-            out = self.model.lstm_linear(out)
-            out = self.model.lstm_lin_activation(out)
-            return out, (hn_new, cn_new)
-
-
-
-
-
-class Out_Filter:
-    def __init__(self, out_features, model):
-        """
-        Simple constructor of the output filter.
-        :param out_features:
-        :param model:
-        """
-        self.out_features = out_features
-        self.model = model
-
-
-    def filter_task(self, x, out, model_state, free_time_slots):
-        """
-        This function change the model behavior depending on its output.
-        :param x: input feature vector
-        :param out: initial model prediction from input filtration.
-        :param free_time_slots: free time available in next `pred_interval` to insert the task.
-        :param model_state: model states (hidden and cell states)
-        :return: y: output feature vector
-        """
-        (hn_new, cn_new) = model_state
-
-        # Check for the output filtration until it give feasible solution
-        while True:
-            out_check = self.__check_overlay(out, free_time_slots)
-
-            # If the output is feasible, set new hidden and cell states and return the output
-            if out_check:
-                self.model.hn = hn_new
-                self.model.cn = cn_new
-                return out
-
-            # Else forward the model with the previous hidden and cell states
-            #TODO: maybe slightly modify h or c or x for network to not create the same output
-            out = self.model.lstm(x, (self.model.hn, self.model.cn))
-            out = self.model.lstm_linear(out)
-
-
-    def __check_overlay(self, times, free_time_slots):
-        """
-        This function checks if the scheduled task fit in available time slots.
-        :param times: tuple of (start, end, refr) times of the scheduled task
-        :param free_time_slots: normalized array of
-            free time slots [[0.0, 0.02], [0.07, 0.2], ...]
-        :return:
-        """
-        pred_interval = self.model.pred_interval
-        start, end, refr = times
-
-        # Check if the scheduled task fit in available time slots
-        for time_slot in free_time_slots:
-            if time_slot[0] <= start <= time_slot[1] and time_slot[0] <= end <= time_slot[1] and start > refr:
-                return True
-
-        return False
-
-
-
+from Data.converter import Converter as Conv
 
 
 class SC_LSTM(nn.Module):
@@ -135,29 +31,24 @@ class SC_LSTM(nn.Module):
         self.hidden = hidden
         self.batch_size = batch_size
         self.train_mode = 'lstm'
-        self.pred_interval = pred_interval             # Prediction interval in minutes (24*60=1440)
+        self.pred_interval = pred_interval  # Prediction interval in minutes (24*60=1440)
         self.hn = None
         self.cn = None
-        # Reset states of the model to zero while initialize
-        self.reset_states()
-
-        # Randomly initialize weights for all the layers
-        self.__init_weights()
+        self.reset_states()     # Reset states of the model to zero while initialize
+        self.__init_weights()   # Randomly initialize weights for all the layers
 
         # Objects declaration
-        self.i_f = InFilter(self)
-        self.o_f = Out_Filter(out_features, self)
-        self.conv = Conv(self.pred_interval)
+        self.converter = Conv(self.pred_interval)
         self.lstm = nn.LSTM(in_features, hidden, lstm_layers, batch_first=True)
         self.lstm_linear = nn.Linear(hidden, out_features)
-        self.lstm_lin_activation = nn.ReLU()
+        self.lstm_lin_activation = nn.Sigmoid()
 
         # NN for injecting non reschedulable tasks
         self.hidden_injector = hidden_injector
         self.injector = nn.Sequential(
             nn.Linear(in_features, hidden_injector),
             nn.ReLU(),
-            nn.Linear(hidden_injector, hidden),
+            nn.Linear(hidden_injector, hidden * lstm_layers),
             nn.ReLU()
         )
 
@@ -173,14 +64,13 @@ class SC_LSTM(nn.Module):
 
         # Check for the input filtration if model is in evaluation mode
         if not self.training:
-            out, (hn_new, cn_new) = self.i_f.filter_task(x, task_type)
 
             if task_type == 'non-resched':
-                return out
+                return self.__plan_non_resched(x, save_states)
 
             elif task_type == 'resched':
-                out = self.o_f.filter_task(x, out, (hn_new, cn_new), free_time_slots)
-                return out
+                return self.__plan_resched(x, free_time_slots, save_states)
+
 
         elif self.training:
             # If we need to train only lstm use lstm and linear layer
@@ -191,7 +81,6 @@ class SC_LSTM(nn.Module):
                 if save_states:
                     self.hn = hn.detach()
                     self.cn = cn.detach()
-
                 out = self.lstm_linear(out)
                 out = self.lstm_lin_activation(out)
                 return out
@@ -204,8 +93,170 @@ class SC_LSTM(nn.Module):
                 return out
 
 
+    def __plan_non_resched(self, x, save_states):
+        """
+        A function to plan a non-reschedulable task. It didn't check
+        the free time slots and simply inject the context to the LSTM and return
+        the input as an output.
+        :param x: input feature vector
+        :param save_states: if True, save the hidden and cell states of the model.
+        :return: y: output feature vector.
+        """
 
-    def train_lstm(self):
+        if save_states:
+            # Create h_new by an injector
+            hn_new = self.injector(x)
+
+            # Reshape hn_new to fit the LSTM input
+            hn_new = hn_new.view(self.lstm_layers, self.batch_size, self.hidden)
+            if self.batch_size == 1:
+                hn_new = hn_new.squeeze(1)
+
+            # Forward lstm with to get c_new
+            _, (_, cn_new) = self.lstm(x, (self.hn, self.cn))
+
+            # Set new injector substituted hidden and new cell state
+            self.hn = hn_new.detach()
+            self.cn = cn_new.detach()
+
+
+
+    def __plan_resched(self, x, free_time_slots, save_states):
+        """
+        A function to plan a reschedulable task. It changes
+        correspondingly the behavior of the model and filter the output
+        to fit the free time slots.
+        :param x: input feature vector
+        :param free_time_slots: normalized array of
+            free time slots [[0.0, 0.02], [0.07, 0.2], ...]
+        :param save_states: if True, save the hidden and cell states of the model.
+        :return: y: output feature vector.
+        """
+
+        out, (hn_new, cn_new) = self.lstm(x, (self.hn, self.cn))
+        out = self.lstm_linear(out)
+        out = self.lstm_lin_activation(out)
+
+        # Create a coppy of free time slots
+        free_time_slots = np.copy(free_time_slots)
+        if self.__check_overlay(out, free_time_slots):
+            # TODO: SHOULD THE MODEL USE AN OUTPUT DURATION AND REFR, OR USE USER DEFINED ONES?
+            # Unpack torch tensors times into 3 variables and convert them to numpy
+            start, duration, refr = out[0][0].item(), out[0][1].item(), out[0][2].item()
+
+
+            print(f"Intermediary output: {out}")
+            total_duration = duration + refr
+            mean_predict_pos = np.mean([start, start + total_duration])
+
+            free_time_slots_means = []
+
+            for elem in free_time_slots:
+                elem_duration = elem[1] - elem[0]
+
+                # Delete all the slots that are not feasible for the task duration
+                if total_duration > elem_duration:
+                    free_time_slots = np.delete(free_time_slots, np.where(free_time_slots == elem)[0][0], axis=0)
+
+                # Save mean of the available time slot if it is feasible
+                else:
+                    free_time_slots_means.append(np.mean(elem))
+
+            # Choose the closest mean to the predicted mean interval
+            best_time_slot_num = np.argmin(np.abs(np.array(free_time_slots_means) - mean_predict_pos))
+
+            # Get corresponding time slot
+            best_time_slot = free_time_slots[best_time_slot_num]
+
+            out = (best_time_slot[0], duration, refr)
+
+            # if save_states:
+            #     # TODO: convert output (,3) and x (,11) to the input model format (,11)
+            #     new_x = None
+            #
+            #     # Create h_new by an injector
+            #     hn_new = self.injector(new_x)
+            #
+            #     # Reshape hn_new to fit the LSTM input
+            #     hn_new = hn_new.view(self.lstm_layers, self.batch_size, self.hidden)
+            #     if self.batch_size == 1:
+            #         hn_new = hn_new.squeeze(1)
+            #
+            #     # Forward lstm with to get c_new
+            #     _, (_, cn_new) = self.lstm(new_x, (self.hn, self.cn))
+            #
+            #     # Set new injector substituted hidden and new cell state
+            #     self.hn = hn_new.detach()
+            #     self.cn = cn_new.detach()
+            return out
+
+        # Save the states and return not modified output if it is feasible
+        else:
+            if save_states:
+                self.hn = hn_new.detach()
+                self.cn = cn_new.detach()
+            return out
+
+
+    def __check_overlay(self, times, free_time_slots):
+        """
+        This function checks if the scheduled task fit in available time slots.
+        :param times: tuple of (start, end, refr) times of the scheduled task
+        :param free_time_slots: normalized array of
+            free time slots [[0.0, 0.02], [0.07, 0.2], ...]
+        :return: True if there is an overlay, False otherwise
+        """
+        # Unpack torch tensors times into 3 variables
+        start = times[0][0].item()
+        duration = times[0][1].item()
+        refr = times[0][2].item()
+        end = start + duration + refr
+
+        # Check if the scheduled task fit in available time slots
+        for time_slot in free_time_slots:
+            if time_slot[0] <= start <= time_slot[1] and time_slot[0] <= end <= time_slot[1] and start > refr:
+                return False
+        return True
+
+
+    def eval_model(self):
+        """
+        This function overload eval() function of nn.Module
+        :return: None
+        """
+        # Set requires_grad to False for all parameters
+        for param in self.parameters():
+            param.requires_grad = False
+        # Call the original eval() function
+        super(SC_LSTM, self).eval()
+
+
+    def train_model(self, mode=True):
+        """
+        This function overload train() function of nn.Module
+        :param mode: "lstm" - train only lstm and lstm_linear
+         layers. It is first step of training
+         where only reschedulable tasks are used.
+         "injector" - train only injector and freeze other
+         layers. It is second step of training
+         where only non-reschedulable tasks are used.
+        :return: None
+        """
+        # Set requires_grad to True for all parameters
+        for param in self.parameters():
+            param.requires_grad = True
+
+        # Call the original train() function
+        super(SC_LSTM, self).train(True)
+
+        if mode == "lstm":
+            self.__train_lstm()
+
+        elif mode == "injector":
+            self.__train_injector()
+
+
+    def __train_lstm(self):
         """
         This function sets the model to train only lstm
          and lstm_linear layers. It is first step of training
@@ -225,8 +276,7 @@ class SC_LSTM(nn.Module):
         self.train_mode = "lstm"
 
 
-
-    def train_injector(self):
+    def __train_injector(self):
         """
         This function sets the model to train only injector
          and freeze other layers. It is second step of training
@@ -246,46 +296,16 @@ class SC_LSTM(nn.Module):
         self.train_mode = "injector"
 
 
-
-    def eval(self):
-        """
-        This function overload eval() function of nn.Module
-        :return: None
-        """
-        # Set requires_grad to False for all parameters
-        for param in self.parameters():
-            param.requires_grad = False
-        # Call the original eval() function
-        super(SC_LSTM, self).eval()
-
-
-
-    def train(self, mode=True):
-        """
-        This function overload train() function of nn.Module
-        :param mode: хз зачем оно тут, вроде как легоси торча :)
-        :return: None
-        """
-        # Set requires_grad to True for all parameters
-        for param in self.parameters():
-            param.requires_grad = True
-
-        # Call the original train() function
-        super(SC_LSTM, self).train(True)
-
-
-
     def reset_states(self):
         """
         This function resets the hidden and cell states of the model to zeros.
         :return: None
         """
         self.hn = torch.zeros(self.lstm_layers, self.batch_size, self.hidden)         # LSTM intermediate result
-        self.cn = torch.zeros(self.lstm_layers, self.batch_size, self.hidden)          # LSTM intermediate result
+        self.cn = torch.zeros(self.lstm_layers, self.batch_size, self.hidden)         # LSTM intermediate result
         if self.batch_size == 1:
             self.hn = self.hn.squeeze(1)
             self.cn = self.cn.squeeze(1)
-
 
 
     def __init_weights(self):
@@ -321,5 +341,3 @@ class SC_LSTM(nn.Module):
         # Set states
         self.hn = hn
         self.cn = cn
-
-
