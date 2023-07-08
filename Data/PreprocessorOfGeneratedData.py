@@ -236,5 +236,3 @@ class Preprocessor:
 #     print(input_vector)
 #     print(type_vector)
 #     print(output_vector)
-
-#%%
