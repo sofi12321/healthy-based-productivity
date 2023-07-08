@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+import pandas as pd
+from Data.Preprocessor import Preprocessor
 
 
 class Converter:
@@ -39,8 +41,50 @@ class Converter:
 
         return task_date_model, duration_model, offset_model
 
+    def out_to_features(self, old_features, out):
+        out = self.model_to_user(out[0], out[1], out[2])
 
-if __name__ == '__main__':
-    convertor = Converter(alpha=1440)
-    convertor.model_to_user(time=0.5, duration=0.5, offset=0.5)
-    convertor.user_to_model(task_date=datetime(2020, 12, 12, 12, 12), duration=60, offset=30)
+        df = pd.DataFrame(
+            columns=['Label Number',
+                     'Duration',
+                     'Importance',
+                     'Time_Min',
+                     'Date_Categorical',
+                     'Date_Day',
+                     'Date_Month',
+                     'Plan_Time_Min',
+                     'Plan_Date_Categorical',
+                     'Plan_Date_Day',
+                     'Plan_Date_Month'
+                     ]
+        )
+        label_number = 0
+        for i in range(4):
+            if old_features[i] == 1:
+                label_number = i
+                break
+        importance = 0
+        start_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[7] * 365 - 1)
+        plan_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[9] * 365 - 1)
+        df.loc[len(df)] = {'Label Number': label_number,
+                           'Duration': out[1],
+                           'Importance': old_features[5],
+                           'Time_Min': out[0].minute + out[0].hour * 60,
+                           'Date_Categorical': old_features[7] * 365,
+                           'Date_Day': start_date.day,
+                           'Date_Month': start_date.month,
+                           'Plan_Time_Min': old_features[8] * 1440,
+                           'Plan_Date_Categorical': old_features[9] * 365,
+                           'Plan_Date_Day': plan_date.day,
+                           'Plan_Date_Month': plan_date.month}
+
+        preprocessor = Preprocessor()
+        return preprocessor.preprocess_activity(df, start_date, plan_date)
+
+
+# TODO: Uncomment only for debugging
+# if __name__ == '__main__':
+#     convertor = Converter(alpha=1440)
+#     convertor.model_to_user(time=0.5, duration=0.5, offset=0.5)
+#     convertor.user_to_model(task_date=datetime(2020, 12, 12, 12, 12), duration=60, offset=30)
+#     convertor.out_to_features([1, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
