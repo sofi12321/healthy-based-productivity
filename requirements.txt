@@ -1,4 +1,8 @@
 torch
 numpy
 pandas
-pandas
+sqlalchemy
+aiogram
+tensorflow==2.13.0
+tensorflow-hub
+tensorflow-text==2.13.0
