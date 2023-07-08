@@ -279,7 +279,6 @@ async def get_task_date(message: Message, state: FSMContext):
             start_time=data.get("task_start_time"),
             date=data.get("task_date"),
         )
-        print(task)
 
     if task is None:
         # Error
@@ -289,16 +288,11 @@ async def get_task_date(message: Message, state: FSMContext):
 
     try:
         repo.add_task(task)
-        print(repo.get_active_tasks(message.from_id))
     except Exception as e:
         # Error
         logging.error(get_lexicon_with_argument("error", e.args))
         await message.answer(lexicon["en"]["retry_trouble"])
         return
-
-    print(repo.get_active_tasks(message.from_id))
-    print(message.from_id)
-    print(repo.get_task_by_id(task.task_id, message.from_id))
 
     await state.finish()
     await message.answer(lexicon["en"]["write_success"])
@@ -462,8 +456,6 @@ async def get_event_repeat_each_number(message: Message, state: FSMContext):
             await message.answer(lexicon["en"]["retry_trouble"])
             await state.finish()
             return
-
-        print("Dates:", dates)
 
         events = parse_event(
             user_id=message.from_id,
