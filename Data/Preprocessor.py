@@ -1,109 +1,215 @@
 import pandas as pd
 import numpy as np
 import datetime
-import random
 from sklearn.preprocessing import MinMaxScaler
-from feature_engine.creation import CyclicalFeatures
 from tg_bot.domain.domain import Task, Event
-from dataclasses import dataclass
-from typing import Optional
+import calendar
 
 
 class Preprocessor:
     def __init__(self):
-        pass
+        """
+        Preprocessor for generated data
+            - duration_scaler: scaler for duration feature
+        """
+        self.duration_scaler = MinMaxScaler()
 
-    def preprocess_task(self, task: Task, label: int):
+    def _make_dataframe(self):
+        """
+        Creates dataframe with columns for model
+        :return: dataframe with columns for model
+        """
+        df = pd.DataFrame(
+            columns=['Label Number',
+                     'Duration',
+                     'Importance',
+                     'Time_Min',
+                     'Date_Categorical',
+                     'Date_Day',
+                     'Date_Month',
+                     'Plan_Time_Min',
+                     'Plan_Date_Categorical',
+                     'Plan_Date_Day',
+                     'Plan_Date_Month'
+                     ]
+        )
+        return df
+
+    def _encode(self, data, column_name, num_labels=4):
+        """
+        Encodes label feature
+        :param data: dataframe with label feature
+        :param num_labels: number of labels
+        :return: dataframe with encoded label feature
+        """
+        encoded_labels = [f"{column_name}_{i}" for i in range(num_labels)]
+        label_num = data[f"{column_name}"].to_numpy().reshape(-1, 1)
+        data.drop(columns=[f"{column_name}"], inplace=True)
+
+        for j in range(len(label_num)):
+            for i in range(num_labels):
+                data.insert(i, encoded_labels[i], 1 if i == label_num[j] else 0)
+        return data
+
+    def _transform_cyclical_features(self, data, start_date, plan_date):
+        """
+        Transforms cyclical features to sin and cos
+        :param data: dataframe with cyclical features
+        :return: dataframe with transformed features
+        """
+        transformed_data = data.copy()
+
+        # Get the number of days in the month of the provided start date of the activity
+        if start_date == 0:
+            start_date = datetime.datetime.now()
+        num_days_start = calendar.monthrange(start_date.year, start_date.month)[1]
+
+        # Get the number of days in the month of the provided date when the activity was planned by user
+        num_days_plan = calendar.monthrange(plan_date.year, plan_date.month)[1]
+
+        # Transform Time_Min feature
+        transformed_data['Time_Min_sin'] = np.sin(2 * np.pi * data['Time_Min'] / 1440)
+        transformed_data['Time_Min_cos'] = np.cos(2 * np.pi * data['Time_Min'] / 1440)
+
+        # Transform Date_Day feature
+        transformed_data['Date_Day_sin'] = np.sin(2 * np.pi * data['Date_Day'] / num_days_start)
+        transformed_data['Date_Day_cos'] = np.cos(2 * np.pi * data['Date_Day'] / num_days_start)
+
+        # Transform Date_Month feature
+        transformed_data['Date_Month_sin'] = np.sin(2 * np.pi * data['Date_Month'] / 12)
+        transformed_data['Date_Month_cos'] = np.cos(2 * np.pi * data['Date_Month'] / 12)
+
+        # Transform Plan_Time_Min feature
+        transformed_data['Plan_Time_Min_sin'] = np.sin(2 * np.pi * data['Plan_Time_Min'] / 1440)
+        transformed_data['Plan_Time_Min_cos'] = np.cos(2 * np.pi * data['Plan_Time_Min'] / 1440)
+
+        # Transform Plan_Date_Day feature
+        transformed_data['Plan_Date_Day_sin'] = np.sin(2 * np.pi * data['Plan_Date_Day'] / num_days_plan)
+        transformed_data['Plan_Date_Day_cos'] = np.cos(2 * np.pi * data['Plan_Date_Day'] / num_days_plan)
+
+        # Transform Plan_Date_Month feature
+        transformed_data['Plan_Date_Month_sin'] = np.sin(2 * np.pi * data['Plan_Date_Month'] / 12)
+        transformed_data['Plan_Date_Month_cos'] = np.cos(2 * np.pi * data['Plan_Date_Month'] / 12)
+
+        # Drop old features except Time_Min and Plan_Time_Min because it is used as feature for model
+        transformed_data.drop(columns=['Date_Day', 'Date_Month', 'Plan_Date_Day', 'Plan_Date_Month'], inplace=True)
+
+        return transformed_data
+
+    def preprocess_task(self, task: Task, label: int, plan_time):
         """
         Preprocesses task for model
         :param task: task to preprocess
         :param label: label of task
         :return: vector of input features for model
         """
-        input_vector = pd.DataFrame(columns=['Label Number', 'Duration', 'Importance', 'Time_Min',
-                                             'Date_Categorical', 'Date_Day', 'Date_Month'])
+        input_vector = self._make_dataframe()
 
         label_num = label
         duration = task.duration
         importance = task.importance
 
         if task.start_time is not None:
-            time = task.start_time
-            minutes = time.minute + time.hour * 60
+            start_time = task.start_time
+            start_minutes = start_time.minute + start_time.hour * 60
         else:
-            minutes = 0
+            start_minutes = 0
 
         if task.date is not None:
-            date = task.date
-            day = date.day
-            month = date.month
+            start_date = task.date
+            start_day = start_date.day
+            start_month = start_date.month
         else:
-            date = 0
-            day = 0
-            month = 0
+            start_date = 0
+            start_day = 0
+            start_month = 0
 
         input_vector.loc[len(input_vector)] = {'Label Number': label_num,
                                                'Duration': duration,
                                                'Importance': importance,
-                                               'Time_Min': minutes,
-                                               'Date_Categorical': int(date.strftime("%j")),
-                                               'Date_Day': day,
-                                               'Date_Month': month}
+                                               'Time_Min': start_minutes,
+                                               'Date_Categorical': int(start_date.strftime("%j")),
+                                               'Date_Day': start_day,
+                                               'Date_Month': start_month,
+                                               'Plan_Time_Min': plan_time.minute + plan_time.hour * 60,
+                                               'Plan_Date_Categorical': int(plan_time.strftime("%j")),
+                                               'Plan_Date_Day': plan_time.day,
+                                               'Plan_Date_Month': plan_time.month}
 
-        cyclical = CyclicalFeatures(variables=['Time_Min', 'Date_Day', 'Date_Month'])
-        input_vector = cyclical.fit_transform(input_vector)
-        input_vector.drop(columns=['Date_Day', 'Date_Month'], inplace=True)
+        return self.preprocess_activity(input_vector, start_date, plan_time)
 
-        scaler = MinMaxScaler()
-        input_vector['Duration'] = scaler.fit_transform(input_vector[['Duration']])
-        input_vector['Time_Min'] = scaler.fit_transform(input_vector[['Time_Min']])
-
-        return input_vector.loc[0].to_numpy()
-
-    def preprocess_event(self, event: Event, label: int):
+    def preprocess_event(self, event: Event, label: int, plan_time):
         """
         Preprocesses event for model
         :param event: event to preprocess
         :param label: label of event
         :return: vector of input features for model
         """
-        input_vector = pd.DataFrame(columns=['Label Number', 'Duration', 'Importance', 'Time_Min',
-                                             'Date_Categorical', 'Date_Day', 'Date_Month'])
+        input_vector = self._make_dataframe()
 
         label_num = label
         duration = event.duration
         importance = 3
 
         if event.start_time is not None:
-            time = event.start_time
-            minutes = time.minute + time.hour * 60
+            start_time = event.start_time
+            start_minutes = start_time.minute + start_time.hour * 60
         else:
-            minutes = 0
+            start_minutes = 0
 
         if event.date is not None:
-            date = event.date
-            day = date.day
-            month = date.month
+            start_date = event.date
+            start_day = start_date.day
+            start_month = start_date.month
         else:
-            date = 0
-            day = 0
-            month = 0
+            start_date = 0
+            start_day = 0
+            start_month = 0
 
         input_vector.loc[len(input_vector)] = {'Label Number': label_num,
                                                'Duration': duration,
                                                'Importance': importance,
-                                               'Time_Min': minutes,
-                                               'Date_Categorical': int(date.strftime("%j")),
-                                               'Date_Day': day,
-                                               'Date_Month': month}
+                                               'Time_Min': start_minutes,
+                                               'Date_Categorical': int(start_date.strftime("%j")),
+                                               'Date_Day': start_day,
+                                               'Date_Month': start_month,
+                                               'Plan_Time_Min': plan_time.minute + plan_time.hour * 60,
+                                               'Plan_Date_Categorical': int(plan_time.strftime("%j")),
+                                               'Plan_Date_Day': plan_time.day,
+                                               'Plan_Date_Month': plan_time.month}
 
-        cyclical = CyclicalFeatures(variables=['Time_Min', 'Date_Day', 'Date_Month'])
-        input_vector = cyclical.fit_transform(input_vector)
-        input_vector.drop(columns=['Date_Day', 'Date_Month'], inplace=True)
+        return self.preprocess_activity(input_vector, start_date, plan_time)
 
-        scaler = MinMaxScaler()
-        input_vector['Duration'] = scaler.fit_transform(input_vector[['Duration']])
-        input_vector['Time_Min'] = scaler.fit_transform(input_vector[['Time_Min']])
+    def preprocess_activity(self, input_vector, start_date, plan_time):
+        # Encode label number and importance
+        input_vector = self._encode(input_vector, "Label Number")
+        input_vector = self._encode(input_vector, "Importance")
+
+        # Transform cyclical features
+        input_vector = self._transform_cyclical_features(input_vector, start_date, plan_time)
+
+        # Update scaler for Duration and then scale Duration
+        self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
+        input_vector['Duration'] = self.duration_scaler.transform(input_vector['Duration'].values.reshape(-1, 1))
+
+        # Scale Time_Min, Date_Categorical, Plan_Time_Min, Plan_Date_Categorical
+        input_vector['Time_Min'] = input_vector['Time_Min'] / 1440
+        input_vector['Date_Categorical'] = input_vector['Date_Categorical'] / 365
+        input_vector['Plan_Time_Min'] = input_vector['Plan_Time_Min'] / 1440
+        input_vector['Plan_Date_Categorical'] = input_vector['Plan_Date_Categorical'] / 365
+
+        # Rearrange columns of input vector
+        input_vector = input_vector[['Label Number_0', 'Label Number_1', 'Label Number_2', 'Label Number_3',
+                                     'Duration',
+                                     'Importance_0', 'Importance_1', 'Importance_2', 'Importance_3',
+                                     'Time_Min', 'Time_Min_sin', 'Time_Min_cos',
+                                     'Date_Categorical',
+                                     'Date_Day_sin', 'Date_Day_cos',
+                                     'Date_Month_sin', 'Date_Month_cos',
+                                     'Plan_Time_Min', 'Plan_Time_Min_sin', 'Plan_Time_Min_cos',
+                                     'Plan_Date_Categorical',
+                                     'Plan_Date_Day_sin', 'Plan_Date_Day_cos',
+                                     'Plan_Date_Month_sin', 'Plan_Date_Month_cos']]
 
         return input_vector.loc[0].to_numpy()
 
@@ -115,9 +221,7 @@ class Preprocessor:
 #     event = Event(telegram_id=1, event_name='test', duration=30, start_time=datetime.time(12, 30),
 #                   date=datetime.date(2021, 5, 1))
 #     preprocessor = Preprocessor()
-#     input_vector = preprocessor.preprocess_task(task, 0)
+#     input_vector = preprocessor.preprocess_task(task, 0, datetime.datetime(2021, 5, 1, 12, 30))
 #     print(input_vector)
-#     input_vector = preprocessor.preprocess_event(event, 0)
+#     input_vector = preprocessor.preprocess_event(event, 0, datetime.datetime(2021, 5, 1, 12, 30))
 #     print(input_vector)
-
-#%%
