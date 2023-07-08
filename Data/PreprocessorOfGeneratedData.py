@@ -17,10 +17,11 @@ class Preprocessor:
 
     def _encode_label(self, data, num_labels=4):
         """
-        Encodes label feature
-        :param data: dataframe with label feature
+        Encodes feature
+        :param data: dataframe with feature to encode
+        :param column_name: name of column to encode
         :param num_labels: number of labels
-        :return: dataframe with encoded label feature
+        :return: dataframe with encoded feature
         """
         encoded_labels = [f"Label Number_{i}" for i in range(num_labels)]
         label_num = data['Label Number'].to_numpy().reshape(-1, 1)
