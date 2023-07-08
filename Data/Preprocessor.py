@@ -35,7 +35,7 @@ class Preprocessor:
         )
         return df
 
-    def _encode_label(self, data, num_labels=4):
+    def _encode(self, data, column_name, num_labels=4):
         """
         Encodes feature
         :param data: dataframe with feature to encode
@@ -43,9 +43,9 @@ class Preprocessor:
         :param num_labels: number of labels
         :return: dataframe with encoded feature
         """
-        encoded_labels = [f"Label Number_{i}" for i in range(num_labels)]
-        label_num = data['Label Number'].to_numpy().reshape(-1, 1)
-        data.drop(columns=['Label Number'], inplace=True)
+        encoded_labels = [f"{column_name}_{i}" for i in range(num_labels)]
+        label_num = data[f"{column_name}"].to_numpy().reshape(-1, 1)
+        data.drop(columns=[f"{column_name}"], inplace=True)
 
         for j in range(len(label_num)):
             for i in range(num_labels):
@@ -92,7 +92,7 @@ class Preprocessor:
         transformed_data['Plan_Date_Month_sin'] = np.sin(2 * np.pi * data['Plan_Date_Month'] / 12)
         transformed_data['Plan_Date_Month_cos'] = np.cos(2 * np.pi * data['Plan_Date_Month'] / 12)
 
-        # Drop old features except Time_Min because it is used as feature for model
+        # Drop old features except Time_Min and Plan_Time_Min because it is used as feature for model
         transformed_data.drop(columns=['Date_Day', 'Date_Month', 'Plan_Date_Day', 'Plan_Date_Month'], inplace=True)
 
         return transformed_data
@@ -137,7 +137,7 @@ class Preprocessor:
                                                'Plan_Date_Day': plan_time.day,
                                                'Plan_Date_Month': plan_time.month}
 
-        return self._preprocess_activity(input_vector, start_date, plan_time)
+        return self.preprocess_activity(input_vector, start_date, plan_time)
 
     def preprocess_event(self, event: Event, label: int, plan_time):
         """
@@ -179,11 +179,12 @@ class Preprocessor:
                                                'Plan_Date_Day': plan_time.day,
                                                'Plan_Date_Month': plan_time.month}
 
-        return self._preprocess_activity(input_vector, start_date, plan_time)
+        return self.preprocess_activity(input_vector, start_date, plan_time)
 
-    def _preprocess_activity(self, input_vector, start_date, plan_time):
-        # Encode label number
-        input_vector = self._encode_label(input_vector)
+    def preprocess_activity(self, input_vector, start_date, plan_time):
+        # Encode label number and importance
+        input_vector = self._encode(input_vector, "Label Number")
+        input_vector = self._encode(input_vector, "Importance")
 
         # Transform cyclical features
         input_vector = self._transform_cyclical_features(input_vector, start_date, plan_time)
@@ -201,7 +202,7 @@ class Preprocessor:
         # Rearrange columns of input vector
         input_vector = input_vector[['Label Number_0', 'Label Number_1', 'Label Number_2', 'Label Number_3',
                                      'Duration',
-                                     'Importance',
+                                     'Importance_0', 'Importance_1', 'Importance_2', 'Importance_3',
                                      'Time_Min', 'Time_Min_sin', 'Time_Min_cos',
                                      'Date_Categorical',
                                      'Date_Day_sin', 'Date_Day_cos',
