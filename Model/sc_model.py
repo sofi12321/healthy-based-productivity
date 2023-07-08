@@ -41,14 +41,14 @@ class SC_LSTM(nn.Module):
         self.converter = Conv(self.pred_interval)
         self.lstm = nn.LSTM(in_features, hidden, lstm_layers, batch_first=True)
         self.lstm_linear = nn.Linear(hidden, out_features)
-        self.lstm_lin_activation = nn.ReLU()
+        self.lstm_lin_activation = nn.Sigmoid()
 
         # NN for injecting non reschedulable tasks
         self.hidden_injector = hidden_injector
         self.injector = nn.Sequential(
             nn.Linear(in_features, hidden_injector),
             nn.ReLU(),
-            nn.Linear(hidden_injector, hidden),
+            nn.Linear(hidden_injector, hidden * lstm_layers),
             nn.ReLU()
         )
 
@@ -81,7 +81,6 @@ class SC_LSTM(nn.Module):
                 if save_states:
                     self.hn = hn.detach()
                     self.cn = cn.detach()
-
                 out = self.lstm_linear(out)
                 out = self.lstm_lin_activation(out)
                 return out
@@ -92,7 +91,6 @@ class SC_LSTM(nn.Module):
                 out = self.lstm_linear(out)
                 out = self.lstm_lin_activation(out)
                 return out
-
 
 
     def __plan_non_resched(self, x, save_states):
@@ -109,6 +107,11 @@ class SC_LSTM(nn.Module):
             # Create h_new by an injector
             hn_new = self.injector(x)
 
+            # Reshape hn_new to fit the LSTM input
+            hn_new = hn_new.view(self.lstm_layers, self.batch_size, self.hidden)
+            if self.batch_size == 1:
+                hn_new = hn_new.squeeze(1)
+
             # Forward lstm with to get c_new
             _, (_, cn_new) = self.lstm(x, (self.hn, self.cn))
 
@@ -116,11 +119,9 @@ class SC_LSTM(nn.Module):
             self.hn = hn_new.detach()
             self.cn = cn_new.detach()
 
-        return None
 
 
-
-    def _plan_resched(self, x, free_time_slots, save_states):
+    def __plan_resched(self, x, free_time_slots, save_states):
         """
         A function to plan a reschedulable task. It changes
         correspondingly the behavior of the model and filter the output
@@ -132,15 +133,19 @@ class SC_LSTM(nn.Module):
         :return: y: output feature vector.
         """
 
-        # out, (hn_new, cn_new) = self.lstm(x, (self.hn, self.cn))
-        # out = self.lstm_linear(out)
-        # out = self.lstm_lin_activation(out)
-        out = x
+        out, (hn_new, cn_new) = self.lstm(x, (self.hn, self.cn))
+        out = self.lstm_linear(out)
+        out = self.lstm_lin_activation(out)
 
         # Create a coppy of free time slots
         free_time_slots = np.copy(free_time_slots)
         if self.__check_overlay(out, free_time_slots):
-            start, duration, refr = out
+            # TODO: SHOULD THE MODEL USE AN OUTPUT DURATION AND REFR, OR USE USER DEFINED ONES?
+            # Unpack torch tensors times into 3 variables and convert them to numpy
+            start, duration, refr = out[0][0].item(), out[0][1].item(), out[0][2].item()
+
+
+            print(f"Intermediary output: {out}")
             total_duration = duration + refr
             mean_predict_pos = np.mean([start, start + total_duration])
 
@@ -165,28 +170,32 @@ class SC_LSTM(nn.Module):
 
             out = (best_time_slot[0], duration, refr)
 
-            if save_states:
-                # TODO: convert output (,3) and x (,11) to the input model format (,11)
-                new_x = None
-
-                # Create h_new by an injector
-                hn_new = self.injector(new_x)
-
-                # Forward lstm with to get c_new
-                _, (_, cn_new) = self.lstm(new_x, (self.hn, self.cn))
-
-                # Set new injector substituted hidden and new cell state
-                self.hn = hn_new.detach()
-                self.cn = cn_new.detach()
+            # if save_states:
+            #     # TODO: convert output (,3) and x (,11) to the input model format (,11)
+            #     new_x = None
+            #
+            #     # Create h_new by an injector
+            #     hn_new = self.injector(new_x)
+            #
+            #     # Reshape hn_new to fit the LSTM input
+            #     hn_new = hn_new.view(self.lstm_layers, self.batch_size, self.hidden)
+            #     if self.batch_size == 1:
+            #         hn_new = hn_new.squeeze(1)
+            #
+            #     # Forward lstm with to get c_new
+            #     _, (_, cn_new) = self.lstm(new_x, (self.hn, self.cn))
+            #
+            #     # Set new injector substituted hidden and new cell state
+            #     self.hn = hn_new.detach()
+            #     self.cn = cn_new.detach()
             return out
 
         # Save the states and return not modified output if it is feasible
-        # else:
-        #     if save_states:
-        #         self.hn = hn_new.detach()
-        #         self.cn = cn_new.detach()
-        #     return out
-
+        else:
+            if save_states:
+                self.hn = hn_new.detach()
+                self.cn = cn_new.detach()
+            return out
 
 
     def __check_overlay(self, times, free_time_slots):
@@ -197,7 +206,10 @@ class SC_LSTM(nn.Module):
             free time slots [[0.0, 0.02], [0.07, 0.2], ...]
         :return: True if there is an overlay, False otherwise
         """
-        start, duration, refr = times
+        # Unpack torch tensors times into 3 variables
+        start = times[0][0].item()
+        duration = times[0][1].item()
+        refr = times[0][2].item()
         end = start + duration + refr
 
         # Check if the scheduled task fit in available time slots
@@ -207,8 +219,7 @@ class SC_LSTM(nn.Module):
         return True
 
 
-
-    def eval(self):
+    def eval_model(self):
         """
         This function overload eval() function of nn.Module
         :return: None
@@ -220,7 +231,7 @@ class SC_LSTM(nn.Module):
         super(SC_LSTM, self).eval()
 
 
-    def train(self, mode="lstm"):
+    def train_model(self, mode=True):
         """
         This function overload train() function of nn.Module
         :param mode: "lstm" - train only lstm and lstm_linear
@@ -245,7 +256,6 @@ class SC_LSTM(nn.Module):
             self.__train_injector()
 
 
-
     def __train_lstm(self):
         """
         This function sets the model to train only lstm
@@ -264,7 +274,6 @@ class SC_LSTM(nn.Module):
                 param.requires_grad = True
 
         self.train_mode = "lstm"
-
 
 
     def __train_injector(self):
@@ -287,7 +296,6 @@ class SC_LSTM(nn.Module):
         self.train_mode = "injector"
 
 
-
     def reset_states(self):
         """
         This function resets the hidden and cell states of the model to zeros.
@@ -300,7 +308,6 @@ class SC_LSTM(nn.Module):
             self.cn = self.cn.squeeze(1)
 
 
-
     def __init_weights(self):
         """
         This function randomly initializes the weights of the model.
@@ -310,14 +317,12 @@ class SC_LSTM(nn.Module):
             nn.init.normal_(param)
 
 
-
     def get_states(self):
         """
         Returns current hidden and cell states of the model.
         :return:
         """
         return self.hn, self.cn
-
 
 
     def set_states(self, hn, cn):
