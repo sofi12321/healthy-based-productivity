@@ -15,16 +15,16 @@ class Preprocessor:
         self.converter = Converter(alpha=1440)
         self.duration_scaler = MinMaxScaler()
 
-    def _encode(self, data, column_name, num_labels=4):
+    def _encode_label(self, data, num_labels=4):
         """
         Encodes label feature
         :param data: dataframe with label feature
         :param num_labels: number of labels
         :return: dataframe with encoded label feature
         """
-        encoded_labels = [f"{column_name}_{i}" for i in range(num_labels)]
-        label_num = data[f"{column_name}"].to_numpy().reshape(-1, 1)
-        data.drop(columns=[f"{column_name}"], inplace=True)
+        encoded_labels = [f"Label Number_{i}" for i in range(num_labels)]
+        label_num = data['Label Number'].to_numpy().reshape(-1, 1)
+        data.drop(columns=['Label Number'], inplace=True)
 
         for j in range(num_labels):
             data.insert(j, encoded_labels[j], 0)
@@ -41,17 +41,21 @@ class Preprocessor:
         :return: dataframe with transformed features
         """
         transformed_data = data.copy()
-        new_columns = [
-            'Time_Min_sin', 'Time_Min_cos', 'Date_Day_sin', 'Date_Day_cos', 'Date_Month_sin', 'Date_Month_cos',
-            'Plan_Time_Min_sin', 'Plan_Time_Min_cos', 'Plan_Date_Day_sin', 'Plan_Date_Day_cos', 'Plan_Date_Month_sin',
-            'Plan_Date_Month_cos'
-        ]
-        for column in new_columns:
-            transformed_data[column] = 0
-
+        transformed_data.insert(0, 'Time_Min_sin', 0)
+        transformed_data.insert(1, 'Time_Min_cos', 0)
+        transformed_data.insert(2, 'Date_Day_sin', 0)
+        transformed_data.insert(3, 'Date_Day_cos', 0)
+        transformed_data.insert(4, 'Date_Month_sin', 0)
+        transformed_data.insert(5, 'Date_Month_cos', 0)
+        transformed_data.insert(6, 'Plan_Time_Min_sin', 0)
+        transformed_data.insert(7, 'Plan_Time_Min_cos', 0)
+        transformed_data.insert(8, 'Plan_Date_Day_sin', 0)
+        transformed_data.insert(9, 'Plan_Date_Day_cos', 0)
+        transformed_data.insert(10, 'Plan_Date_Month_sin', 0)
+        transformed_data.insert(11, 'Plan_Date_Month_cos', 0)
         for i in range(len(data)):
             start_date = data['Date'].loc[i]
-            plan_date = data['Plan_Date'].loc[i]
+            plan_date = data['Plan_Time'].loc[i]
 
             # Get the number of days in the month of the provided start date of the activity
             if start_date == 0:
@@ -85,7 +89,7 @@ class Preprocessor:
             transformed_data.loc[i, 'Plan_Date_Month_sin'] = np.sin(2 * np.pi * data['Plan_Date_Month'][i] / 12)
             transformed_data.loc[i, 'Plan_Date_Month_cos'] = np.cos(2 * np.pi * data['Plan_Date_Month'][i] / 12)
 
-        # Drop old features except Time_Min and Plan_Time_Min because it is used as feature for model
+        # Drop old features except Time_Min because it is used as feature for model
         transformed_data.drop(columns=['Date_Day', 'Date_Month', 'Plan_Date_Day', 'Plan_Date_Month'], inplace=True)
 
         return transformed_data
@@ -118,11 +122,30 @@ class Preprocessor:
         # Fill output vector
         output_vector = np.empty((len(input_vector), 3), dtype=object)
         for i in range(len(input_vector)):
-            shift = 0
-            if type_vector[i] == 'resched':
+            # Convert output vector if type is non-resched
+            if type_vector[i] == 'non-resched':
+                output_vector[i] = self.converter.user_to_model(
+                    task_date=datetime.datetime(
+                        year=input_vector['Date'][i].year,
+                        month=input_vector['Date'][i].month,
+                        day=input_vector['Date'][i].day,
+                        hour=input_vector['Time_Min'][i] // 60,
+                        minute=input_vector['Time_Min'][i] % 60,
+                    ),
+                    duration=int(input_vector['Duration'][i]),
+                    offset=0
+                )
+            else:
                 # Shift time and duration with some probability
                 if random.random() > 0.8:
                     shift = random.randint(-15, 15)
+                    output_vector[i][0] = input_vector['Time_Min'][i]
+                    output_vector[i][1] = input_vector['Duration'][i] + shift
+                    output_vector[i][2] = shift
+                else:
+                    output_vector[i][0] = input_vector['Time_Min'][i]
+                    output_vector[i][1] = input_vector['Duration'][i]
+                    output_vector[i][2] = 0
 
                 # Delete date with some probability for augmentation
                 if random.random() > 0.8:
@@ -133,19 +156,6 @@ class Preprocessor:
                 # Delete time with some probability for augmentation
                 if random.random() > 0.8:
                     input_vector.loc[i, "Time_Min"] = 0
-
-            # Convert output vector
-            output_vector[i] = self.converter.user_to_model(
-                task_date=datetime.datetime(
-                    year=input_vector['Date'][i].year,
-                    month=input_vector['Date'][i].month,
-                    day=input_vector['Date'][i].day,
-                    hour=input_vector['Time_Min'][i] // 60,
-                    minute=input_vector['Time_Min'][i] % 60,
-                ),
-                duration=int(input_vector['Duration'][i]) + shift,
-                offset=shift
-            )
 
         # Fill plan time
         temp_day = input_vector['Date_Day'][0]
@@ -166,7 +176,7 @@ class Preprocessor:
                 time = input_vector['Time_Min'][i] - random.randint(5, 15)
                 time = 0 if time < 0 else time
 
-            input_vector.loc[i, "Plan_Date"] = datetime.datetime(
+            input_vector.loc[i, "Plan_Time"] = datetime.datetime(
                 year=input_vector['Date'][i].year,
                 month=input_vector['Date'][i].month,
                 day=input_vector['Date'][i].day,
@@ -174,14 +184,13 @@ class Preprocessor:
                 minute=time % 60,
             )
 
-        input_vector['Plan_Time_Min'] = input_vector['Plan_Date'].dt.minute + input_vector['Plan_Date'].dt.hour * 60
-        input_vector['Plan_Date_Categorical'] = input_vector['Plan_Date'].dt.strftime("%j").astype(int)
-        input_vector['Plan_Date_Day'] = input_vector['Plan_Date'].dt.day
-        input_vector['Plan_Date_Month'] = input_vector['Plan_Date'].dt.month
+        input_vector['Plan_Time_Min'] = input_vector['Plan_Time'].dt.minute + input_vector['Plan_Time'].dt.hour * 60
+        input_vector['Plan_Date_Categorical'] = input_vector['Plan_Time'].dt.strftime("%j").astype(int)
+        input_vector['Plan_Date_Day'] = input_vector['Plan_Time'].dt.day
+        input_vector['Plan_Date_Month'] = input_vector['Plan_Time'].dt.month
 
-        # Encode label number and importance
-        input_vector = self._encode(input_vector, "Label Number")
-        input_vector = self._encode(input_vector, "Importance")
+        # Encode label number
+        input_vector = self._encode_label(input_vector)
 
         # Transform cyclical features
         input_vector = self._transform_cyclical_features(input_vector)
@@ -197,12 +206,12 @@ class Preprocessor:
         input_vector['Plan_Date_Categorical'] = input_vector['Plan_Date_Categorical'] / 365
 
         # Drop unnecessary columns
-        input_vector.drop(columns=['Date', 'Start Time', 'Plan_Date'], inplace=True)
+        input_vector.drop(columns=['Date', 'Start Time', 'Plan_Time'], inplace=True)
 
         # Rearrange columns of input vector
         input_vector = input_vector[['Label Number_0', 'Label Number_1', 'Label Number_2', 'Label Number_3',
                                      'Duration',
-                                     'Importance_0', 'Importance_1', 'Importance_2', 'Importance_3',
+                                     'Importance',
                                      'Time_Min', 'Time_Min_sin', 'Time_Min_cos',
                                      'Date_Categorical',
                                      'Date_Day_sin', 'Date_Day_cos',
@@ -219,11 +228,13 @@ class Preprocessor:
 
 
 # TODO: Uncomment only for debugging
-if __name__ == '__main__':
+# if __name__ == '__main__':
+# 
+#     preprocessor = Preprocessor()
+#     input_vector, type_vector, output_vector = preprocessor.preprocess("schedule_gen.csv")
+#     print(input_vector.columns)
+#     print(input_vector)
+#     print(type_vector)
+#     print(output_vector)
 
-    preprocessor = Preprocessor()
-    input_vector, type_vector, output_vector = preprocessor.preprocess("schedule_gen.csv")
-    print(input_vector.columns)
-    print(input_vector)
-    print(type_vector)
-    print(output_vector)
+#%%
