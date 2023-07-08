@@ -10,9 +10,9 @@ import tensorflow_text as text
 import re
 import gdown
 import datetime
+import warnings
 
 from Model.sc_model import SC_LSTM
-from official.nlp import optimization
 from Data.converter import Converter
 from Data.Preprocessor import Preprocessor
 from tg_bot.domain.domain import Task, Event
@@ -53,7 +53,7 @@ class Planner:
 
         :return: model
         """
-        Loading BERT-based task names classifier
+        # Loading BERT-based task names classifier
         url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
         output = './model.json'
         gdown.download(url, output, quiet=False)
@@ -76,10 +76,7 @@ class Planner:
         # Compile model
         loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
         metrics = tf.metrics.BinaryAccuracy()
-        optimizer = optimization.create_optimizer(init_lr=3e-5,
-                                                  num_train_steps=210,
-                                                  num_warmup_steps=21,
-                                                  optimizer_type='adamw')
+        optimizer = tf.keras.optimizers.AdamW(learning_rate=3e-5)
         loaded_model.compile(optimizer=optimizer, loss=loss,
                              metrics=metrics)
 
