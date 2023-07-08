@@ -220,11 +220,11 @@ class Preprocessor:
 
 
 # TODO: Uncomment only for debugging
-if __name__ == '__main__':
-
-    preprocessor = Preprocessor()
-    input_vector, type_vector, output_vector = preprocessor.preprocess("schedule_gen.csv")
-    print(input_vector.columns)
-    print(input_vector)
-    print(type_vector)
-    print(output_vector)
+# if __name__ == '__main__':
+#
+#     preprocessor = Preprocessor()
+#     input_vector, type_vector, output_vector = preprocessor.preprocess("schedule_gen.csv")
+#     print(input_vector.columns)
+#     print(input_vector)
+#     print(type_vector)
+#     print(output_vector)
