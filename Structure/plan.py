@@ -1,17 +1,18 @@
 import numpy as np
 import pandas as pd
+import torch
 
 from torch import load
-import tensorflow as tf
-import tensorflow_hub as hub
-import tensorflow_text as text
+# import tensorflow as tf
+# import tensorflow_hub as hub
+# import tensorflow_text as text
 
 import re
-import gdown
+# import gdown
 import datetime
 
 from Model.sc_model import SC_LSTM
-from official.nlp import optimization
+# from official.nlp import optimization
 from Data.converter import Converter
 from Data.Preprocessor import Preprocessor
 from tg_bot.domain.domain import Task, Event
@@ -29,13 +30,14 @@ class Planner:
                                  pred_interval=alpha)
 
         # Load model weights
-        self.scheduler.load_state_dict(load('Model/sc_lstm_weights.pth'))
+        # TODO: UNCOMMENT THIS
+        # self.scheduler.load_state_dict(load("../Model/sc_lstm_weights.pth"))
 
         # Set the model to evaluation mode
-        self.scheduler.eval()
+        self.scheduler.eval_model()
 
         # Load NLP model
-        self.nlp_model = self.nlp_load_model()
+        # self.nlp_model = self.nlp_load_model()
 
         # Set preprocessing objects
         self.converter = Converter(alpha=alpha)
@@ -48,36 +50,37 @@ class Planner:
         :return: model
         """
         # Loading BERT-based task names classifier
-        url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
-        output = './model.json'
-        gdown.download(url, output, quiet=False)
+        # url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
+        # output = './model.json'
+        # gdown.download(url, output, quiet=False)
+        #
+        # # Loading weights of the classifier
+        # url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
+        # output = './model.h5'
+        # gdown.download(url, output, quiet=False)
+        #
+        # # Build model
+        # json_file = open('model.json', 'r')
+        # loaded_model_json = json_file.read()
+        # json_file.close()
+        # loaded_model = tf.keras.models.model_from_json(
+        #     loaded_model_json,
+        #     custom_objects={'KerasLayer': hub.KerasLayer}
+        # )
+        # loaded_model.load_weights("model.h5")
+        #
+        # # Compile model
+        # loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+        # metrics = tf.metrics.BinaryAccuracy()
+        # optimizer = optimization.create_optimizer(init_lr=3e-5,
+        #                                           num_train_steps=210,
+        #                                           num_warmup_steps=21,
+        #                                           optimizer_type='adamw')
+        # loaded_model.compile(optimizer=optimizer, loss=loss,
+        #                      metrics=metrics)
 
-        # Loading weights of the classifier
-        url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
-        output = './model.h5'
-        gdown.download(url, output, quiet=False)
-
-        # Build model
-        json_file = open('model.json', 'r')
-        loaded_model_json = json_file.read()
-        json_file.close()
-        loaded_model = tf.keras.models.model_from_json(
-            loaded_model_json,
-            custom_objects={'KerasLayer': hub.KerasLayer}
-        )
-        loaded_model.load_weights("model.h5")
-
-        # Compile model
-        loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-        metrics = tf.metrics.BinaryAccuracy()
-        optimizer = optimization.create_optimizer(init_lr=3e-5,
-                                                  num_train_steps=210,
-                                                  num_warmup_steps=21,
-                                                  optimizer_type='adamw')
-        loaded_model.compile(optimizer=optimizer, loss=loss,
-                             metrics=metrics)
-
-        return loaded_model
+        # return loaded_model
+        return 0
 
     def label_handling(self, task_name: str) -> int:
         """
@@ -91,15 +94,16 @@ class Planner:
         :param task_name: string, name of the events or list of events
         :return: number of group belonging
         """
-        words = [task_name]
-        y_pred = self.nlp_model.predict(words)
-        label = np.argmax(y_pred, axis=1)
-        return label[0]
+        # words = [task_name]
+        # y_pred = self.nlp_model.predict(words)
+        # label = np.argmax(y_pred, axis=1)
+        # return label[0]
+        return 0
 
     def set_available_time_slots(self, tasks, events):
         # TODO: Yaroslav, event - was scheduled and for task - predicted date
         #
-        available_time_slots = [[0.0, 1.0]]
+        available_time_slots = [[0.05, 1]]
         return available_time_slots
 
     def update_available_time_slots_event(self, event, available_time_slots):
@@ -123,7 +127,7 @@ class Planner:
             - vector of output features describing given event,
             - time when the event was planned by user
         """
-        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
+        input_vector = self.preprocessor.preprocess_event(event, label)
         activity_type = "non-resched"
 
         return input_vector, activity_type
@@ -160,12 +164,12 @@ class Planner:
             - time when the task was planned by user
         """
         # TODO: Yaroslav, план тайм добавить в обработку
-        input_vector = self.preprocessor.preprocess_task(task, label, plan_time)
+        input_vector = self.preprocessor.preprocess_task(task, label)
         activity_type = "resched"
 
         return input_vector, activity_type
 
-    def call_model(self, task_type, input_features, available_time_slots, user_h, user_c):
+    def call_model(self, input_features, task_type, available_time_slots, user_h, user_c):
         """
         Perform scheduling for an event or event.
         :param task_type: event for non-reschedulable, task for reschedulable
@@ -176,8 +180,17 @@ class Planner:
         :return: (,3) vector prediction of the model, and the new user states (h, c)
         """
 
+        # Convert input_features to the torch tensor
+        input_features = np.array(input_features).astype(np.float64)
+        input_features = torch.tensor(input_features, dtype=torch.float32)
+        input_features = input_features.unsqueeze(0)
+
+
         # Set the model states to user states
         self.scheduler.set_states(user_h, user_c)
+
+        # TODO: DELETE THIS PLUG
+        task_type = 'resched'
 
         # Make a model prediction
         prediction = self.scheduler.forward(input_features,
@@ -187,6 +200,9 @@ class Planner:
 
         # Get new user states
         new_h, new_c = self.scheduler.get_states()
+
+        # TODO: DELETE THIS
+        print(f"Output prediction: {prediction}")
 
         return prediction, new_h, new_c
 
@@ -241,9 +257,10 @@ class Planner:
         for task in not_sch_tasks:
             label = self.label_handling(task.task_name)
             input_vector, activity_type = self.preprocess_task(task, label, plan_time)
+
             # start_time duration offset
-            model_output, user_h, user_c = self.call_model(activity_type, input_vector, available_time_slots,
-                                                           user_h, user_c)
+            model_output, user_h, user_c = self.call_model(activity_type, input_vector, available_time_slots, user_h, user_c)
+
             # TODO CHECK SHAPE model output !!!
             print(model_output)
             task_schedule = self.convert_output_to_schedule(task.task_id, model_output, plan_time)
@@ -358,4 +375,17 @@ class Planner:
 
 if __name__ == '__main__':
     planner = Planner()
-    print(planner.get_model_schedule([], [], [], []))
+    tasks = [
+        Task(telegram_id=0, task_name="sport", duration=90, importance=2, start_time=datetime.time(13, 20),
+             date=datetime.datetime.now()),
+        Task(telegram_id=1, task_name="music", duration=40, importance=1, start_time=datetime.time(17, 20),
+             date=datetime.datetime.now())
+    ]
+    events = [
+        Event(telegram_id=3, event_name="lesson_1", duration=90, start_time=datetime.time(10, 0),
+              date=datetime.datetime.now()),
+        Event(telegram_id=5, event_name="lesson_2", duration=120, start_time=datetime.time(20, 20),
+              date=datetime.datetime.now())
+    ]
+
+    print(planner.get_model_schedule(tasks, events, [[0]*124]*2, [[0]*124]*2))
