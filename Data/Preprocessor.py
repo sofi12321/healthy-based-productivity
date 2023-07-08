@@ -76,14 +76,14 @@ class Preprocessor:
 
         if event.start_time is not None:
             time = event.start_time
-            minutes = time.minute + time.hour * 60
+            minutes = 1#time.minute + time.hour * 60
         else:
             minutes = 0
 
         if event.date is not None:
             date = event.date
-            day = date.day
-            month = date.month
+            day = 1#date.day
+            month = 1#date.month
         else:
             date = 0
             day = 0
@@ -96,6 +96,10 @@ class Preprocessor:
                                                'Date_Categorical': int(date.strftime("%j")),
                                                'Date_Day': day,
                                                'Date_Month': month}
+
+        input_vector['Time_Min'] = input_vector['Time_Min'].astype(int)
+        input_vector['Date_Day'] = input_vector['Date_Day'].astype(int)
+        input_vector['Date_Month'] = input_vector['Date_Month'].astype(int)
 
         cyclical = CyclicalFeatures(variables=['Time_Min', 'Date_Day', 'Date_Month'])
         input_vector = cyclical.fit_transform(input_vector)
