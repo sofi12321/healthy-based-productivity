@@ -4,6 +4,8 @@ import numpy as np
 from typing import TypeAlias, Optional, Tuple, List
 from tg_bot.domain.domain import Task, Event, BasicUserInfo
 
+from torch import tensor, float32, Tensor
+
 # Task aliases
 TaskName: TypeAlias = str
 Duration: TypeAlias = int
@@ -27,12 +29,21 @@ EventTuple: TypeAlias = Tuple[
 IsDone: TypeAlias = bool
 
 
-def parse_numpy_arr(numpy_arr_str: str) -> Optional[np.float32]:
+def numpy_to_string(numpy_arr: np.float32) -> str:
+    numpy_arr = numpy_arr.reshape(1, -1)[0]
+    new_arr = []
+    for elem in numpy_arr:
+        new_arr.append(str(elem))
+
+    return ' '.join(new_arr)
+
+
+def parse_numpy_arr(numpy_arr_str: str) -> Optional[Tensor]:
     if not isinstance(numpy_arr_str, str):
         logging.warning("Got unexpected type")
         return None
 
-    return np.fromstring(numpy_arr_str, dtype=float, sep=' ')
+    return tensor(np.array([np.fromstring(numpy_arr_str, dtype=float, sep=' ')]), dtype=float32)
 
 
 def day_of_week(day_str: str) -> Optional[int]:

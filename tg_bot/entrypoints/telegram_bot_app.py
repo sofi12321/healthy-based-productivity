@@ -8,6 +8,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import numpy as np
+from torch import tensor
+import tensorflow as tf
 
 import tg_bot.config as config
 from tg_bot.adapters import orm, repositories
@@ -31,6 +33,7 @@ from tg_bot.utils.utils import (
     parse_repeated_arguments,
     parse_int_in_range,
     check_repeat_each_argument,
+    numpy_to_string,
 )
 from tg_bot.adapters.repositories import get_events_repo, get_tasks_repo, get_users_repo
 
@@ -135,9 +138,7 @@ async def get_end_day(message: Message, state: FSMContext):
 
         history, context = PLANNER.scheduler.get_states()
 
-        history_str, context_str = " ".join(map(str, history)), " ".join(
-            map(str, context)
-        )
+        history_str, context_str = numpy_to_string(history.numpy()), numpy_to_string(context.numpy())
 
         user = parse_user(
             user_id=message.from_id,
@@ -640,9 +641,13 @@ async def plan_new_schedule(message: Message, state: FSMContext):
         logging.error(get_lexicon_with_argument("error", e.args))
         return
 
+    print(user.history, user.context)
+
     user_history, user_context = parse_numpy_arr(user.history), parse_numpy_arr(
         user.context
     )
+
+    print(user_history, user_context)
 
     current_time = datetime.datetime.now()
 
@@ -656,15 +661,11 @@ async def plan_new_schedule(message: Message, state: FSMContext):
     tasks = list(filter(lambda task: task.predicted_date is None, tasks))
     events = list(filter(lambda event: event.predicted_date is None, events))
 
-    print(tasks)
-
     """Sending to model"""
 
     new_schedule, user_h, user_c = PLANNER.get_model_schedule(
         tasks, events, user_history, user_context
     )
-
-    print(new_schedule, user_h, user_c)
 
     """Gathering and saving generated information"""
 
@@ -697,7 +698,5 @@ async def plan_new_schedule(message: Message, state: FSMContext):
     events = event_repo.get_events_in_range(
         message.from_id, ALPHA, current_time.date(), current_time.time()
     )
-
-    print(tasks)
 
     await message.answer(PLANNER.print_schedule(tasks, events))
