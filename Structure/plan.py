@@ -22,7 +22,7 @@ class Planner:
     def __init__(self, alpha=1440):
         # TODO: All the parameters should be in configured after training
         self.scheduler = SC_LSTM(in_features=11,
-                                 lstm_layers=2,
+                                 lstm_layers=1,
                                  hidden=124,
                                  hidden_injector=64,
                                  out_features=3,
@@ -31,7 +31,7 @@ class Planner:
 
         # Load model weights
         # TODO: UNCOMMENT THIS
-        # self.scheduler.load_state_dict(load("../Model/sc_lstm_weights.pth"))
+        self.scheduler.load_state_dict(load("../Model/sc_lstm_weights.pth"))
 
         # Set the model to evaluation mode
         self.scheduler.eval_model()
@@ -184,6 +184,7 @@ class Planner:
         input_features = np.array(input_features).astype(np.float64)
         input_features = torch.tensor(input_features, dtype=torch.float32)
         input_features = input_features.unsqueeze(0)
+
 
 
         # Set the model states to user states
@@ -376,7 +377,7 @@ class Planner:
 if __name__ == '__main__':
     planner = Planner()
     tasks = [
-        Task(telegram_id=0, task_name="sport", duration=90, importance=2, start_time=datetime.time(13, 20),
+        Task(telegram_id=0, task_name="sport", duration=20, importance=2, start_time=datetime.time(13, 20),
              date=datetime.datetime.now()),
         Task(telegram_id=1, task_name="music", duration=40, importance=1, start_time=datetime.time(17, 20),
              date=datetime.datetime.now())
@@ -388,4 +389,4 @@ if __name__ == '__main__':
               date=datetime.datetime.now())
     ]
 
-    print(planner.get_model_schedule(tasks, events, [[0]*124]*2, [[0]*124]*2))
+    print(planner.get_model_schedule(tasks, events, [[0]*124]*1, [[0]*124]*1))

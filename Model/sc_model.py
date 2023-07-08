@@ -41,7 +41,7 @@ class SC_LSTM(nn.Module):
         self.converter = Conv(self.pred_interval)
         self.lstm = nn.LSTM(in_features, hidden, lstm_layers, batch_first=True)
         self.lstm_linear = nn.Linear(hidden, out_features)
-        self.lstm_lin_activation = nn.ReLU()
+        self.lstm_lin_activation = nn.Sigmoid()
 
         # NN for injecting non reschedulable tasks
         self.hidden_injector = hidden_injector
@@ -81,7 +81,6 @@ class SC_LSTM(nn.Module):
                 if save_states:
                     self.hn = hn.detach()
                     self.cn = cn.detach()
-
                 out = self.lstm_linear(out)
                 out = self.lstm_lin_activation(out)
                 return out
