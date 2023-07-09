@@ -466,7 +466,7 @@ async def event_want_repeat(message: Message, state: FSMContext):
 
     repo = get_events_repo()
     try:
-        repo.add_event(event)
+        repo.add_many_events(event)
     except Exception as e:
         logging.error(
             get_lexicon_with_argument("error", f"Could not save to db: {e.args}")
@@ -479,7 +479,7 @@ async def event_want_repeat(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        lexicon["write_success"], reply_markup=await get_start_buttons_keyboard()
+        lexicon['en']["write_success"], reply_markup=await get_start_buttons_keyboard()
     )
     await state.finish()
 
@@ -623,7 +623,7 @@ async def mark_history(message: Message, state: FSMContext):
 
 
 @dp.callback_query_handler(
-    lambda c: c.data.startwith("task_"), state=MarkHistory.ChooseTask
+    lambda c: c.data.startswith("task_"), state=MarkHistory.ChooseTask
 )
 async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext):
     message_text: str = callback_query.message.text
@@ -720,6 +720,11 @@ async def marking_history_is_done(message: Message, state: FSMContext):
         await message.answer(lexicon["en"]["retry_yesno"])
         return
 
+    if result:
+        await message.answer(lexicon['en']['marking_history_start_time'])
+        await state.set_state(MarkHistory.MarkingHistoryStartTime)
+        return
+
     repo = get_tasks_repo()
 
     async with state.proxy() as data:
@@ -728,7 +733,11 @@ async def marking_history_is_done(message: Message, state: FSMContext):
         task: Task = data.get("marking_task")
 
         if data["is_done"] is False:
-            task: Task = data.get("marking_task")
+            task.real_start = task.predicted_start
+            task.real_date = task.predicted_date
+            task.real_duration = 0
+
+            repo.add_task(task)
 
     await message.answer(
         lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard()
@@ -764,8 +773,6 @@ async def plan_new_schedule(message: Message, state: FSMContext):
         logging.error(get_lexicon_with_argument("error", e.args))
         return
 
-    print(user.history, user.context)
-
     user_history, user_context = parse_numpy_arr(user.history), parse_numpy_arr(
         user.context
     )
@@ -779,8 +786,8 @@ async def plan_new_schedule(message: Message, state: FSMContext):
         message.from_id, ALPHA, current_time.date(), current_time.time()
     )
 
-    tasks = list(filter(lambda task: task.predicted_date is None, tasks))
-    events = list(filter(lambda event: event.predicted_date is None, events))
+    tasks = list(filter(lambda task: task.predicted_start is None, tasks))
+    events = list(filter(lambda event: event.was_scheduled is False, events))
 
     """Sending to model"""
 
@@ -810,6 +817,10 @@ async def plan_new_schedule(message: Message, state: FSMContext):
             logging.error(get_lexicon_with_argument("error", e.args))
             await message.answer(lexicon["en"]["retry_trouble"])
             continue
+
+    for event in events:
+        event.was_scheduled = True
+        event_repo.add_event(event)
 
     """Replying to user"""
 

@@ -39,8 +39,8 @@ class EventsRepository:
         )
 
     def get_events_in_range(self, user_id: int, delta_hours: int, from_date: datetime.date, from_time: datetime.time) -> [domain.Event]:
-        delta_days = delta_hours % 24
-        delta_time = delta_hours // 24
+        delta_days = delta_hours // 24
+        delta_time = delta_hours % 24
 
         from_datetime = datetime.datetime.combine(from_date, from_time)
         to_datetime = from_datetime + datetime.timedelta(days=delta_days, hours=delta_time)
@@ -49,11 +49,16 @@ class EventsRepository:
             domain.Event.date.between(from_datetime.date(), to_datetime.date())
         ).all()
 
+        print(events)
+
         return_arr = []
 
         for event in events:
             event_datetime = datetime.datetime.combine(event.date, event.start_time)
             event_duration = datetime.timedelta(minutes=event.duration)
+
+            print(event_datetime + event_duration)
+            print(from_datetime, to_datetime)
 
             if from_datetime <= event_datetime + event_duration <= to_datetime:
                 return_arr.append(event)
@@ -102,8 +107,8 @@ class TasksRepository:
         return self.session.query(domain.Task).filter_by(telegram_id=user_id, is_done=False).all()
 
     def get_task_in_range(self, user_id: int, delta_hours: int, from_date: datetime.date, from_time: datetime.time) -> [domain.Task]:
-        delta_days = delta_hours % 24
-        delta_time = delta_hours // 24
+        delta_days = delta_hours // 24
+        delta_time = delta_hours % 24
 
         from_datetime = datetime.datetime.combine(from_date, from_time)
         to_datetime = from_datetime + datetime.timedelta(days=delta_days, hours=delta_time)
@@ -111,6 +116,8 @@ class TasksRepository:
         tasks = self.session.query(domain.Task).filter_by(telegram_id=user_id).filter(
             domain.Task.date.between(from_datetime.date(), to_datetime.date())
         ).all()
+
+        # print(tasks)
 
         return_arr = []
 
@@ -121,8 +128,13 @@ class TasksRepository:
             task_datetime = datetime.datetime.combine(task.date, task.start_time)
             task_duration = datetime.timedelta(minutes=task.duration)
 
+            print(task_datetime + task_duration)
+            print(from_datetime, to_datetime)
+
             if from_datetime <= task_datetime + task_duration <= to_datetime:
                 return_arr.append(task)
+
+        print(return_arr)
 
         return return_arr
 

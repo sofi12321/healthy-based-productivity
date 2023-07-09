@@ -39,7 +39,7 @@ class Planner:
         self.scheduler.eval_model()
 
         # Load NLP model
-        # self.nlp_model = self.nlp_load_model()
+        self.nlp_model = self.nlp_load_model()
 
         # Set preprocessing objects
         self.converter = Converter(alpha=alpha)
@@ -134,11 +134,7 @@ class Planner:
         Update available time slots based on the scheduled task
         :param prediction: tensor contains 3 number alpha related: start_time, duration, offset
         """
-        time, duration, offset = (
-            prediction[0].item(),
-            prediction[1].item(),
-            prediction[2].item(),
-        )
+        time, duration, offset = prediction[0], prediction[1], prediction[2]
         # print("вход слотов", time, duration, offset)
         self.available_time_slots = self.update_slot(
             time, max(duration, duration + offset), self.available_time_slots
@@ -208,7 +204,7 @@ class Planner:
             - vector of output features describing given event,
             - time when the event was planned by user
         """
-        input_vector = self.preprocessor.preprocess_event(event, label)
+        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
         activity_type = "non-resched"
 
         return input_vector, activity_type
@@ -273,13 +269,14 @@ class Planner:
         # Set the model states to user states
         self.scheduler.set_states(user_h, user_c)
 
-        # Make a model prediction
-        prediction = self.scheduler.forward(
-            input_features,
-            task_type=task_type,
-            free_time_slots=available_time_slots,
-            save_states=True,
-        )
+        with torch.no_grad():
+            # Make a model prediction
+            prediction = self.scheduler.forward(
+                input_features,
+                task_type=task_type,
+                free_time_slots=available_time_slots,
+                save_states=True,
+            )
 
         # Get new user states
         new_h, new_c = self.scheduler.get_states()
@@ -287,8 +284,11 @@ class Planner:
         # TODO: DELETE THIS
         print(f"Output prediction: {prediction}")
 
+        if isinstance(prediction, torch.Tensor):
+            prediction = prediction[0].numpy()
+
         # [[1,2,3]]
-        return prediction[0], new_h, new_c
+        return prediction, new_h, new_c
 
     def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
         """
@@ -300,7 +300,7 @@ class Planner:
         :param plan_time: datetime when /plan was called
         :return: dictionary to save data in database
         """
-        print(prediction)
+        print("Prediction", prediction)
         time, duration, offset = prediction[0], prediction[1], prediction[2]
         task_datetime_user, duration_user, offset_user = self.converter.model_to_user(
             time, duration, offset, current_date=plan_time

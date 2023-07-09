@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 import pandas as pd
 from Data.Preprocessor import Preprocessor
+import torch
+import numpy as np
 
 
 class Converter:
@@ -42,7 +44,10 @@ class Converter:
         return task_date_model, duration_model, offset_model
 
     def out_to_features(self, old_features, out):
-        out_converted = self.model_to_user(out[0], out[1].item(), out[2].item())
+        print(out)
+        old_features = old_features[0].numpy()
+        print(old_features)
+        out_converted = self.model_to_user(out[0], out[1], out[2])
 
         df = pd.DataFrame(
             columns=['Label Number',
@@ -83,7 +88,8 @@ class Converter:
                            'Plan_Date_Month': plan_date.month}
 
         preprocessor = Preprocessor()
-        return preprocessor.preprocess_activity(df, start_date, plan_date)
+        new_features = preprocessor.preprocess_activity(df, start_date, plan_date)
+        return torch.tensor(np.array([new_features]), dtype=torch.float32)
 
 
 # TODO: Uncomment only for debugging
