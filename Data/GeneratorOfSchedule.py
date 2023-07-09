@@ -135,6 +135,6 @@ class GeneratorOfSchedule:
 
 
 # TODO: Uncomment only for debugging
-if __name__ == "__main__":
-    generator = GeneratorOfSchedule(100)
-    generator.generate_schedule()
+# if __name__ == "__main__":
+#     generator = GeneratorOfSchedule(800)
+#     generator.generate_schedule()

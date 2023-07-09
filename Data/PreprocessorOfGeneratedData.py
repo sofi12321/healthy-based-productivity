@@ -136,17 +136,10 @@ class Preprocessor:
                     input_vector.loc[i, "Time_Min"] = 0
 
             # Convert output vector
-            output_vector[i] = self.converter.user_to_model(
-                task_date=datetime.datetime(
-                    year=input_vector['Date'][i].year,
-                    month=input_vector['Date'][i].month,
-                    day=input_vector['Date'][i].day,
-                    hour=input_vector['Time_Min'][i] // 60,
-                    minute=input_vector['Time_Min'][i] % 60,
-                ),
-                duration=int(input_vector['Duration'][i]) + shift,
-                offset=shift
-            )
+            output_vector[i][0] = input_vector['Time_Min'][i] / 1440
+            output_vector[i][1] = (input_vector['Duration'][i] + shift) / 1440,
+            output_vector[i][2] = shift / 1440
+
 
         # Fill plan time
         temp_day = input_vector['Date_Day'][0]
@@ -215,6 +208,8 @@ class Preprocessor:
 
         # Convert the output_vector to the same format as an input_vector
         output_vector = pd.DataFrame(output_vector, columns=['start', 'end', 'refr'])
+        if isinstance(output_vector["end"][0], tuple):
+            output_vector["end"] = output_vector["end"].apply(lambda x: x[0])
 
         return input_vector, type_vector, output_vector
 
