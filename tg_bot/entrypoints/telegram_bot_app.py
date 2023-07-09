@@ -535,10 +535,10 @@ async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext)
                 Task date: {task.date or "No date"}\n"""
             )
             await callback_query.message.answer(
-                lexicon["en"]["marking_history_start_time"]
+                lexicon["en"]["marking_history_is_done"]
             )
 
-    await state.set_state(MarkHistory.MarkingHistoryStartTime)
+    await state.set_state(MarkHistory.MarkingHistoryIsDone)
 
     async with state.proxy() as data:
         data["marking_task"] = task
@@ -571,11 +571,21 @@ async def marking_history_duration(message: Message, state: FSMContext):
         await message.answer(lexicon["en"]["retry_int"])
         return
 
+    repo = get_tasks_repo()
+
     async with state.proxy() as data:
         data["duration"] = result
 
-    await state.set_state(MarkHistory.MarkingHistoryIsDone)
-    await message.answer(lexicon["en"]["marking_history_is_done"])
+        task: Task = data.get("marking_task")
+
+        task.real_start = data.get("start_time")
+        task.real_date = data.get("date", datetime.date.today())
+        task.real_duration = data.get("duration")
+        task.is_done = data.get("is_done", True)
+        repo.add_task(task)
+
+    await state.finish()
+    await message.answer(lexicon["en"]["write_success"])
 
 
 @dp.message_handler(state=MarkHistory.MarkingHistoryIsDone)
@@ -603,14 +613,24 @@ async def marking_history_is_done(message: Message, state: FSMContext):
 
         task: Task = data.get("marking_task")
 
-        task.real_start = data.get("start_time")
-        task.real_date = data.get("date", datetime.date.today())
-        task.real_duration = data.get("duration")
-        task.is_done = data.get("is_done")
-        repo.add_task(task)
+        if data["is_done"] is False:
+            task: Task = data.get("marking_task")
 
-    await message.answer(lexicon["en"]["write_success"])
-    await state.finish()
+            task.real_start = task.predicted_start
+            task.real_duration = 0
+            task.real_date = task.predicted_date
+            task.is_done = True
+
+            repo.add_task(task)
+
+            # TODO: add to the planner
+            # PLANNER.
+
+            await message.answer(lexicon["en"]["write_success"])
+            await state.finish()
+
+    await message.answer(lexicon["en"]["marking_history_start_time"])
+    await state.set_state(MarkHistory.MarkingHistoryStartTime)
 
 
 @dp.message_handler(commands=["plan"], state="*")
