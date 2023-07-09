@@ -21,7 +21,7 @@ from tg_bot.domain.domain import Task, Event
 class Planner:
     def __init__(self, alpha=1440):
         # TODO: All the parameters should be in configured after training
-        self.scheduler = SC_LSTM(in_features=25,
+        self.scheduler = SC_LSTM(in_features=22,
                                  lstm_layers=1,
                                  hidden=124,
                                  hidden_injector=64,

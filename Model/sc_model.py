@@ -104,20 +104,7 @@ class SC_LSTM(nn.Module):
         """
 
         if save_states:
-            # Create h_new by an injector
-            hn_new = self.injector(x)
-
-            # Reshape hn_new to fit the LSTM input
-            hn_new = hn_new.view(self.lstm_layers, self.batch_size, self.hidden)
-            if self.batch_size == 1:
-                hn_new = hn_new.squeeze(1)
-
-            # Forward lstm with to get c_new
-            _, (_, cn_new) = self.lstm(x, (self.hn, self.cn))
-
-            # Set new injector substituted hidden and new cell state
-            self.hn = hn_new.detach()
-            self.cn = cn_new.detach()
+            self.__use_injector(x)
 
 
 
@@ -176,24 +163,10 @@ class SC_LSTM(nn.Module):
 
             out = (best_time_slot[0], duration, refr)
 
-            # if save_states:
-            #     # TODO: convert output (,3) and x (,11) to the input model format (,11)
-            #     new_x = None
-            #
-            #     # Create h_new by an injector
-            #     hn_new = self.injector(new_x)
-            #
-            #     # Reshape hn_new to fit the LSTM input
-            #     hn_new = hn_new.view(self.lstm_layers, self.batch_size, self.hidden)
-            #     if self.batch_size == 1:
-            #         hn_new = hn_new.squeeze(1)
-            #
-            #     # Forward lstm with to get c_new
-            #     _, (_, cn_new) = self.lstm(new_x, (self.hn, self.cn))
-            #
-            #     # Set new injector substituted hidden and new cell state
-            #     self.hn = hn_new.detach()
-            #     self.cn = cn_new.detach()
+            if save_states:
+                # Convert output (,3) and x (,11) to the input model format (,11)
+                new_x = self.converter.out_to_features(x, out)
+                self.__use_injector(new_x)
             return out
 
         # Save the states and return not modified output if it is feasible
@@ -202,6 +175,23 @@ class SC_LSTM(nn.Module):
                 self.hn = hn_new.detach()
                 self.cn = cn_new.detach()
             return out
+
+
+    def __use_injector(self, x):
+        # Create h_new by an injector
+        hn_new = self.injector(x)
+
+        # Reshape hn_new to fit the LSTM input
+        hn_new = hn_new.view(self.lstm_layers, self.batch_size, self.hidden)
+        if self.batch_size == 1:
+            hn_new = hn_new.squeeze(1)
+
+        # Forward lstm with to get c_new
+        _, (_, cn_new) = self.lstm(x, (self.hn, self.cn))
+
+        # Set new injector substituted hidden and new cell state
+        self.hn = hn_new.detach()
+        self.cn = cn_new.detach()
 
 
     def __check_overlay(self, times, free_time_slots):
