@@ -183,7 +183,7 @@ class Preprocessor:
         self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
         input_vector['Duration'] = self.duration_scaler.transform(input_vector['Duration'].values.reshape(-1, 1))
 
-        # Scale Time_Min, Date_Categorical, Plan_Time_Min, Plan_Date_Categorical
+        # Scale Time_Min, Date_Categorical, Plan_Time_Min, Plan_Date_Categorical, Importance
         input_vector['Time_Min'] = input_vector['Time_Min'] / 1440
         input_vector['Date_Categorical'] = input_vector['Date_Categorical'] / 365
         input_vector['Plan_Time_Min'] = input_vector['Plan_Time_Min'] / 1440
