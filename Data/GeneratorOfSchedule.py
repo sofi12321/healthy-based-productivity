@@ -14,15 +14,6 @@ class GeneratorOfSchedule:
         self.filename = filename
         self.schedule = []
 
-    def _generate_start_date(self):
-        """
-        Generate a random start date in the given range (01/01/2022 - 31/12/2022)
-            from which the schedule will be generated
-        :return: start date
-        """
-        random_date = datetime.strptime("01/01/2022", "%d/%m/%Y") + timedelta(days=random.randint(0, 365))
-        return random_date
-
     def _generate_start_time(self):
         """
         Generate a random start time of the day in the given range (06:00 - 09:30)
@@ -85,7 +76,7 @@ class GeneratorOfSchedule:
         """
         Generate a schedule for the given number of days
         """
-        curr_time = self._generate_start_date() + self._generate_start_time()
+        curr_time = datetime.now() + timedelta(days=1) + self._generate_start_time()
         next_start_time = self._generate_next_start_time(curr_time)
         day_end_time = next_start_time - timedelta(hours=random.randint(7, 9))
 
@@ -144,6 +135,6 @@ class GeneratorOfSchedule:
 
 
 # TODO: Uncomment only for debugging
-# if __name__ == "__main__":
-#     generator = GeneratorOfSchedule(100)
-#     generator.generate_schedule()
+if __name__ == "__main__":
+    generator = GeneratorOfSchedule(100)
+    generator.generate_schedule()
