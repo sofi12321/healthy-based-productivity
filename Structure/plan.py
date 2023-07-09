@@ -61,7 +61,7 @@ class Planner:
         # url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
         # output = './model.h5'
         # gdown.download(url, output, quiet=False)
-        
+
         # Build model
         json_file = open('model.json', 'r')
         loaded_model_json = json_file.read()
@@ -71,7 +71,7 @@ class Planner:
             custom_objects={'KerasLayer': hub.KerasLayer}
         )
         loaded_model.load_weights("model.h5")
-        
+
         # Compile model
         loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
         metrics = tf.metrics.BinaryAccuracy()
@@ -191,7 +191,7 @@ class Planner:
             - vector of output features describing given event,
             - time when the event was planned by user
         """
-        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
+        input_vector = self.preprocessor.preprocess_event(event, label)
         activity_type = "non-resched"
 
         return input_vector, activity_type
@@ -307,6 +307,11 @@ class Planner:
         resulted_schedule = []
         self.set_available_time_slots(tasks, events)
 
+<<<<<<< HEAD
+        # TODO: Sofi
+        not_sch_tasks, not_sch_events = tasks, events
+        print(f"not_sch_task: {not_sch_events}", f"not_sch_events: {not_sch_events}", sep='\n')
+=======
         # Keep only those tasks that were not scheduled before
         tasks_new, events_new = [], []
         for event in events:
@@ -315,6 +320,7 @@ class Planner:
         for task in tasks:
             if not task.predicted_start:
                 tasks_new.append(task)
+>>>>>>> main
 
         # Schedule events first. They must be in their places
         for event in events_new:
@@ -336,9 +342,15 @@ class Planner:
             input_vector, activity_type = self.preprocess_task(task, label, plan_time)
 
             # start_time duration offset
+<<<<<<< HEAD
+            model_output, user_h, user_c = self.call_model(activity_type, input_vector, available_time_slots,
+                                                           user_h, user_c)
+            print(f"Task: {task}, model_output: {model_output}")
+=======
             model_output, user_h, user_c = self.call_model(input_vector,activity_type, self.available_time_slots, user_h,
                                                            user_c)
 
+>>>>>>> main
             # TODO CHECK SHAPE model output !!!
             task_schedule = self.convert_output_to_schedule(task.task_id, model_output, plan_time)
             resulted_schedule.append(task_schedule)

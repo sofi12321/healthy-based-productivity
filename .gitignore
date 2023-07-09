@@ -1,3 +1,4 @@
+/tg_bot/local_db/*.db
 Model/venv
 Model/Basic_Fuctionality_Test.ipynb
 Structure/model.h5
