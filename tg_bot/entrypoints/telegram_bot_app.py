@@ -862,12 +862,6 @@ async def choose_date_to_list(message: Message, state: FSMContext):
 
     result = parse_date(message_text)
 
-    if message_text.strip().lower() == "today":
-        result = datetime.date.today()
-
-    if message_text.strip().lower() == "tomorrow":
-        result = datetime.date.today() + datetime.timedelta(days=1)
-
     if result is None:
         """Please retry"""
         await message.answer(lexicon["en"]["retry_date"])
@@ -875,6 +869,15 @@ async def choose_date_to_list(message: Message, state: FSMContext):
 
     async with state.proxy() as data:
         data["list_date"] = result
+
+    repo_event = get_events_repo()
+    repo_tasks = get_tasks_repo()
+
+    events = repo_event.get_all_events_for_specific_date(result, message.from_id)
+    tasks = repo_tasks.get_all_tasks_for_specific_date(result, message.from_id)
+
+    # Get from utils sorted list
+    # sorted_list = []
 
     await message.answer(lexicon["en"]["list_task_event"])
     await state.set_state(List.ListingTasksEvents)

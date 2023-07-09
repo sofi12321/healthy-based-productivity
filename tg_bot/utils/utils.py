@@ -266,6 +266,14 @@ def parse_date(date_str: str) -> Optional[Date]:
         logging.warning("Got unexpected type")
         return None
 
+    date_str = date_str.strip().lower()
+
+    if date_str == "today":
+        return datetime.date.today()
+
+    if date_str == "tomorrow":
+        return datetime.date.today() + datetime.timedelta(days=1)
+
     date_split = date_str.strip().split("/")
     if len(date_split) != 3:
         logging.warning("Cannot parse to date")
