@@ -21,7 +21,7 @@ from tg_bot.domain.domain import Task, Event
 class Planner:
     def __init__(self, alpha=1440):
         # TODO: All the parameters should be in configured after training
-        self.scheduler = SC_LSTM(in_features=11,
+        self.scheduler = SC_LSTM(in_features=22,
                                  lstm_layers=1,
                                  hidden=124,
                                  hidden_injector=64,
@@ -31,21 +31,19 @@ class Planner:
 
         # Load model weights
         # TODO: UNCOMMENT THIS
-        self.scheduler.load_state_dict(load("../Model/sc_lstm_weights.pth"))
+        self.scheduler.load_state_dict(load("Model/sc_lstm_weights.pth"))
 
         # Set the model to evaluation mode
         self.scheduler.eval_model()
 
         # Load NLP model
-        self.nlp_model = self.nlp_load_model()
+        # self.nlp_model = self.nlp_load_model()
 
         # Set preprocessing objects
         self.converter = Converter(alpha=alpha)
         self.preprocessor = Preprocessor()
-        
-        # Initially all time slots are free 
+        # Initially all time slots are free
         self.available_time_slots = [[0, 1]]
-        
 
     def nlp_load_model(self):
         """
@@ -53,16 +51,16 @@ class Planner:
 
         :return: model
         """
-        # Loading BERT-based task names classifier
-        url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
-        output = './model.json'
-        gdown.download(url, output, quiet=False)
-        
-        # Loading weights of the classifier
-        url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
-        output = './model.h5'
-        gdown.download(url, output, quiet=False)
-        
+        # # Loading BERT-based task names classifier
+        # url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
+        # output = './model.json'
+        # gdown.download(url, output, quiet=False)
+        #
+        # # Loading weights of the classifier
+        # url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
+        # output = './model.h5'
+        # gdown.download(url, output, quiet=False)
+
         # Build model
         json_file = open('model.json', 'r')
         loaded_model_json = json_file.read()
@@ -72,7 +70,7 @@ class Planner:
             custom_objects={'KerasLayer': hub.KerasLayer}
         )
         loaded_model.load_weights("model.h5")
-        
+
         # Compile model
         loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
         metrics = tf.metrics.BinaryAccuracy()
@@ -98,7 +96,7 @@ class Planner:
         y_pred = self.nlp_model.predict(words)
         label = np.argmax(y_pred, axis=1)
         return label[0]
-        
+
     def set_available_time_slots(self, tasks, events):
         """
         Set available time slots based on the already scheduled events and tasks.
@@ -111,7 +109,9 @@ class Planner:
                 self.update_available_time_slots_event(event)
         for task in tasks:
             if task.predicted_start:
-                task_output = self.convert_history_to_output(task.predicted_date, task.predicted_start, task.predicted_duration, task.predicted_duration+task.predicted_offset)
+                task_output = self.convert_history_to_output(task.predicted_date, task.predicted_start,
+                                                             task.predicted_duration,
+                                                             task.predicted_duration + task.predicted_offset)
                 self.update_available_time_slots_task(task_output)
 
     def update_available_time_slots_event(self, event):
@@ -128,8 +128,9 @@ class Planner:
         Update available time slots based on the scheduled task
         :param prediction: tensor contains 3 number alpha related: start_time, duration, offset
         """
-        time, duration, offset = prediction[0], prediction[1], prediction[2]
-        self.available_time_slots = self.update_slot(time, max(duration, duration+offset), self.available_time_slots)
+        time, duration, offset = prediction[0].item(), prediction[1].item(), prediction[2].item()
+        # print("вход слотов", time, duration, offset)
+        self.available_time_slots = self.update_slot(time, max(duration, duration + offset), self.available_time_slots)
 
     def update_slot(self, start_time, duration, time_slots):
         """
@@ -138,12 +139,13 @@ class Planner:
         :param duration: [0,1] duration alpha-related
         :param time_slots: list of available slots
         """
+        # print("dgjdkghkd", start_time, duration)
         for i in range(len(time_slots)):
             # Should change start of the slot
-            if start_time<0:
+            if start_time < 0:
                 start_time = 0
-            elif start_time+duration>1:
-                duration = start_time+duration-1
+            elif start_time + duration > 1:
+                duration = start_time + duration - 1
             if time_slots[i][0] == start_time:
                 time_slots[i][0] += duration
                 if time_slots[i][0] >= time_slots[i][1]:
@@ -171,7 +173,7 @@ class Planner:
                 # gets into time slot
                 print("Something went wrong. Time slots are overlapping 3")
                 time_slots[i][1] = start_time
-                if time_slots[i + 1][0] < start_time+duration:
+                if time_slots[i + 1][0] < start_time + duration:
                     time_slots[i + 1][0] = start_time + duration
             else:
                 continue
@@ -190,7 +192,7 @@ class Planner:
             - vector of output features describing given event,
             - time when the event was planned by user
         """
-        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
+        input_vector = self.preprocessor.preprocess_event(event, label)
         activity_type = "non-resched"
 
         return input_vector, activity_type
@@ -248,13 +250,10 @@ class Planner:
         input_features = torch.tensor(input_features, dtype=torch.float32)
         input_features = input_features.unsqueeze(0)
 
-
+        print(available_time_slots)
 
         # Set the model states to user states
         self.scheduler.set_states(user_h, user_c)
-
-        # TODO: DELETE THIS PLUG
-        task_type = 'resched'
 
         # Make a model prediction
         prediction = self.scheduler.forward(input_features,
@@ -267,8 +266,9 @@ class Planner:
 
         # TODO: DELETE THIS
         print(f"Output prediction: {prediction}")
-
-        return prediction, new_h, new_c
+        
+        # [[1,2,3]]
+        return prediction[0], new_h, new_c
 
     def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
         """
@@ -280,7 +280,7 @@ class Planner:
         :param plan_time: datetime when /plan was called
         :return: dictionary to save data in database
         """
-        time, duration, offset = prediction[0], prediction[1], prediction[2]
+        time, duration, offset = prediction[0].item(), prediction[1].item(), prediction[2].item()
         task_datetime_user, duration_user, offset_user = self.converter.model_to_user(time, duration, offset,
                                                                                       current_date=plan_time)
         return {'task_id': task_id,
@@ -317,7 +317,9 @@ class Planner:
 
         # Schedule events first. They must be in their places
         for event in events_new:
-            label = self.label_handling(event.event_name)
+            # TODO: UNCOMMENT PLUG
+            label = 0
+            # label = self.label_handling(event.event_name)
             input_vector, activity_type = self.preprocess_event(event, label, plan_time)
             _, user_h, user_c = self.call_model(input_vector, activity_type, self.available_time_slots,
                                                 user_h, user_c)
@@ -327,20 +329,21 @@ class Planner:
         tasks_new = self.sort_tasks(tasks_new)
 
         for task in tasks_new:
-            label = self.label_handling(task.task_name)
+            # TODO: UNCOMMENT PLUG
+            label = 0
+            # label = self.label_handling(task.task_name)
             input_vector, activity_type = self.preprocess_task(task, label, plan_time)
 
             # start_time duration offset
-            model_output, user_h, user_c = self.call_model(input_vector,activity_type, self.available_time_slots, user_h,
+            model_output, user_h, user_c = self.call_model(input_vector, activity_type, self.available_time_slots,
+                                                           user_h,
                                                            user_c)
-
             # TODO CHECK SHAPE model output !!!
-            print(model_output)
             task_schedule = self.convert_output_to_schedule(task.task_id, model_output, plan_time)
             resulted_schedule.append(task_schedule)
 
             self.update_available_time_slots_task(model_output)
-            
+
         return resulted_schedule, user_h, user_c
 
     def convert_history_to_output(self, real_date: datetime.date, real_start_time: datetime.time, real_duration: int,
@@ -394,6 +397,7 @@ class Planner:
         true_labels = self.convert_history_to_output(task.real_date, task.real_start, task.real_duration, task.duration)
         self.train_model(true_labels)
         return True
+
     def print_schedule(self, tasks, events):
         """
         Prints the schedule for a day.
@@ -402,7 +406,7 @@ class Planner:
         :param events: list of objects of class Event in a schedule
         :return: string with the schedule
         """
-        
+
         # "Daily Routine", "Passive Rest", "Physical Activity", "Work-study"
         smiles = ['🏡', '🎨', '💪', '✍', '📌']
         output_schedule = "Your schedule:\n"
@@ -410,11 +414,18 @@ class Planner:
         additional = "\n🏖 ADD_MIN min to finalize the task"
         final = "\n\n"
 
+        tasks_not_done = []
+        flag_plan = False
         # Sort all tasks and events by the start time
         order = {}
         for task in tasks:
-            order[task.predicted_start] = ['task', task]
+            if task.predicted_start:
+                order[task.predicted_start] = ['task', task]
+            else:
+                tasks_not_done.append(task)
         for event in events:
+            if not event.was_scheduled:
+                flag_plan = True
             order[event.start_time] = ['event', event]
 
         sorted_order = sorted(order.keys())
@@ -442,18 +453,29 @@ class Planner:
                     output_task += re.sub("ADD_MIN", str(int(order[t][1].predicted_offset)), additional)
             output_task += final
             output_schedule += output_task
+
+        if flag_plan:
+            if len(tasks_not_done) > 0:
+                output_schedule += "Please, call /plan to add all tasks and events in the schedule"
+            else:
+                output_schedule += "Please, call /plan to add not scheduled events"
+        elif len(tasks_not_done) < 1:
+            output_schedule += "Please, call /plan to add not scheduled tasks"
+        elif len(output_schedule) < 1:
+            output_schedule += "Please, add tasks and events first using /add_task or /add_event"
         return output_schedule
+
 
 if __name__ == '__main__':
     planner = Planner()
     tasks = [
         Task(telegram_id=0, task_name="sport", importance=2,
              start_time=datetime.time(13, 20), duration=20, date=datetime.datetime.now().date(),
-             predicted_start=datetime.time(13, 20), predicted_duration=20, predicted_offset=5,
+             # predicted_start=datetime.time(13, 20), predicted_duration=20, predicted_offset=5,
              predicted_date=datetime.datetime.now().date()),
         Task(telegram_id=1, task_name="music", importance=1,
              duration=40, start_time=datetime.time(17, 20), date=datetime.datetime.now().date(),
-             predicted_start=datetime.time(17, 20), predicted_duration=40, predicted_offset=10,
+             # predicted_start=datetime.time(17, 20), predicted_duration=40, predicted_offset=10,
              predicted_date=datetime.datetime.now().date())
     ]
     events = [
@@ -462,6 +484,6 @@ if __name__ == '__main__':
         Event(telegram_id=5, event_name="lesson_2", duration=120, start_time=datetime.time(20, 20),
               date=datetime.datetime.now().date())
     ]
-
-    print(planner.get_model_schedule(tasks, events, [[0] * 124] * 1, [[0] * 124] * 1, plan_time=datetime.datetime.now().replace(hour=8, minute=0, second=0, microsecond=0)))
+    planner.get_model_schedule(tasks, events, [[0] * 124] * 1, [[0] * 124] * 1,
+                               plan_time=datetime.datetime.now().replace(hour=8, minute=0, second=0, microsecond=0))
     print(planner.print_schedule(tasks, events))

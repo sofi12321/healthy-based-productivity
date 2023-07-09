@@ -68,17 +68,17 @@ class Converter:
             if old_features[i] == 1:
                 importance = i - 5
                 break
-        start_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[12] * 365 - 1)
-        plan_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[20] * 365 - 1)
+        start_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[9] * 365 - 1)
+        plan_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[17] * 365 - 1)
         df.loc[len(df)] = {'Label Number': label_number,
                            'Duration': out_converted[1],
                            'Importance': importance,
                            'Time_Min': out_converted[0].minute + out_converted[0].hour * 60,
-                           'Date_Categorical': old_features[12] * 365,
+                           'Date_Categorical': old_features[9] * 365,
                            'Date_Day': start_date.day,
                            'Date_Month': start_date.month,
-                           'Plan_Time_Min': old_features[17] * 1440,
-                           'Plan_Date_Categorical': old_features[20] * 365,
+                           'Plan_Time_Min': old_features[14] * 1440,
+                           'Plan_Date_Categorical': old_features[17] * 365,
                            'Plan_Date_Day': plan_date.day,
                            'Plan_Date_Month': plan_date.month}
 

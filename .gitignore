@@ -1,5 +1,8 @@
+/tg_bot/local_db/*.db
 Model/venv
 Model/Basic_Fuctionality_Test.ipynb
+Structure/model.h5
+Structure/model.json
 Model/__pycache__
 Data/__pycache__
 venv

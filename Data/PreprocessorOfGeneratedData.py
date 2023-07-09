@@ -173,9 +173,8 @@ class Preprocessor:
         input_vector['Plan_Date_Day'] = input_vector['Plan_Date'].dt.day
         input_vector['Plan_Date_Month'] = input_vector['Plan_Date'].dt.month
 
-        # Encode label number and importance
+        # Encode label number
         input_vector = self._encode(input_vector, "Label Number")
-        input_vector = self._encode(input_vector, "Importance")
 
         # Transform cyclical features
         input_vector = self._transform_cyclical_features(input_vector)
@@ -184,11 +183,12 @@ class Preprocessor:
         self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
         input_vector['Duration'] = self.duration_scaler.transform(input_vector['Duration'].values.reshape(-1, 1))
 
-        # Scale Time_Min, Date_Categorical, Plan_Time_Min, Plan_Date_Categorical
+        # Scale Time_Min, Date_Categorical, Plan_Time_Min, Plan_Date_Categorical, Importance
         input_vector['Time_Min'] = input_vector['Time_Min'] / 1440
         input_vector['Date_Categorical'] = input_vector['Date_Categorical'] / 365
         input_vector['Plan_Time_Min'] = input_vector['Plan_Time_Min'] / 1440
         input_vector['Plan_Date_Categorical'] = input_vector['Plan_Date_Categorical'] / 365
+        input_vector['Importance'] = input_vector['Importance'] / 4
 
         # Drop unnecessary columns
         input_vector.drop(columns=['Date', 'Start Time', 'Plan_Date'], inplace=True)
@@ -196,7 +196,7 @@ class Preprocessor:
         # Rearrange columns of input vector
         input_vector = input_vector[['Label Number_0', 'Label Number_1', 'Label Number_2', 'Label Number_3',
                                      'Duration',
-                                     'Importance_0', 'Importance_1', 'Importance_2', 'Importance_3',
+                                     'Importance',
                                      'Time_Min', 'Time_Min_sin', 'Time_Min_cos',
                                      'Date_Categorical',
                                      'Date_Day_sin', 'Date_Day_cos',
@@ -207,9 +207,9 @@ class Preprocessor:
                                      'Plan_Date_Month_sin', 'Plan_Date_Month_cos']]
 
         # Convert the output_vector to the same format as an input_vector
-        output_vector = pd.DataFrame(output_vector, columns=['start', 'end', 'refr'])
-        if isinstance(output_vector["end"][0], tuple):
-            output_vector["end"] = output_vector["end"].apply(lambda x: x[0])
+        output_vector = pd.DataFrame(output_vector, columns=['start', 'duration', 'refr'])
+        if isinstance(output_vector["duration"][0], tuple):
+            output_vector["duration"] = output_vector["duration"].apply(lambda x: x[0])
 
         return input_vector, type_vector, output_vector
 
