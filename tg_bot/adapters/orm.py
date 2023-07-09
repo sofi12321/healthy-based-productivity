@@ -60,7 +60,7 @@ tasks_table = Table(
     # Constraints
     CheckConstraint("duration > 0"),
     CheckConstraint("importance >= 0 and importance <= 3"),
-    CheckConstraint("real_duration is null or real_duration > 0"),
+    CheckConstraint("real_duration is null or real_duration >= 0"),
     CheckConstraint(
         """(is_done is true and real_start is not null and real_duration is not null and real_date is not null)
         or (is_done is false)"""

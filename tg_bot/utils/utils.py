@@ -277,7 +277,7 @@ def parse_date(date_str: str) -> Optional[Date]:
         return None
 
     try:
-        date = datetime.date(year, month, day)
+        date = datetime.date(year=year, month=month, day=day)
         return date
     except ValueError:
         logging.warning("Wrong format of date")

@@ -95,6 +95,167 @@ async def process_start_command(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["first_hello"])
 
 
+@dp.message_handler(lambda m: m.text.strip().lower() == '+task')
+@dp.message_handler(state="*", commands=["add_task"])
+async def add_task(message: Message, state: FSMContext):
+    repo = get_users_repo()
+    user = repo.get_user_by_id(message.from_id)
+
+    if user is None:
+        """Please enter '/start'"""
+        await message.answer(lexicon["en"]["user_not_found"])
+        return
+
+    await state.set_state(GetTaskInfo.TaskNameState)
+    await message.answer(lexicon["en"]["add_task"])
+
+
+@dp.message_handler(lambda m: m.text.strip().lower() == '+event')
+@dp.message_handler(state="*", commands=["add_event"])
+async def add_event(message: Message, state: FSMContext):
+    message_text = message.text
+
+    repo = get_users_repo()
+    user = repo.get_user_by_id(message.from_id)
+
+    if user is None:
+        """Please enter '/start'"""
+        await message.answer(lexicon["en"]["user_not_found"])
+        return
+
+    await state.set_state(GetEventInfo.EventNameState)
+    await message.answer(lexicon["en"]["add_event"])
+
+
+@dp.message_handler(lambda m: m.text.strip().lower() == 'mark history')
+@dp.message_handler(commands=["mark_history"])
+async def mark_history(message: Message, state: FSMContext):
+    message_text = message.text
+
+    repo = get_users_repo()
+    user = repo.get_user_by_id(message.from_id)
+
+    if user is None:
+        """Please enter '/start'"""
+        await message.answer(lexicon["en"]["user_not_found"])
+        return
+
+    repo = get_tasks_repo()
+
+    async with state.proxy() as data:
+        keyboard = await get_active_tasks_keyboard(
+            repo.get_active_tasks(user.telegram_id)
+        )
+        await message.answer(lexicon["en"]["mark_history"], reply_markup=keyboard)
+
+    await state.set_state(MarkHistory.ChooseTask)
+
+
+@dp.message_handler(lambda m: m.text.strip().lower() == 'plan')
+@dp.message_handler(commands=["plan"], state="*")
+async def plan_new_schedule(message: Message, state: FSMContext):
+    """
+    Gathering unscheduled tasks and events from user and
+    sends it to model and shows new generated schedule
+    by model
+    """
+
+    message_text = message.text
+
+    await message.answer(lexicon["en"]["plan"])
+
+    task_repo = get_tasks_repo()
+    event_repo = get_events_repo()
+    user_repo = get_users_repo()
+
+    """Gathering unscheduled tasks and events"""
+
+    try:
+        user = user_repo.get_user_by_id(message.from_id)
+
+        if user is None:
+            raise ValueError("Could not find user that made message")
+
+    except Exception as e:
+        logging.error(get_lexicon_with_argument("error", e.args))
+        return
+
+    user_history, user_context = parse_numpy_arr(user.history), parse_numpy_arr(
+        user.context
+    )
+
+    current_time = datetime.datetime.now()
+
+    tasks = task_repo.get_task_in_range(
+        message.from_id, ALPHA, current_time.date(), current_time.time()
+    )
+    events = event_repo.get_events_in_range(
+        message.from_id, ALPHA, current_time.date(), current_time.time()
+    )
+
+    tasks = list(filter(lambda task: task.predicted_start is None, tasks))
+    events = list(filter(lambda event: event.was_scheduled is False, events))
+
+    """Sending to model"""
+
+    new_schedule, user_h, user_c = PLANNER.get_model_schedule(
+        tasks, events, user_history, user_context
+    )
+
+    """Gathering and saving generated information"""
+
+    for new_task_info in new_schedule:
+        try:
+            task = task_repo.get_task_by_id(
+                task_id=new_task_info["task_id"], user_id=message.from_id
+            )
+
+            if task is None:
+                logging.warning("Got unexpected output from db")
+                continue
+
+            task.predicted_start = new_task_info["predicted_start_time"]
+            task.predicted_offset = new_task_info["predicted_offset"]
+            task.predicted_date = new_task_info["predicted_date"]
+            task.predicted_duration = new_task_info["predicted_duration"]
+
+            task_repo.add_task(task)
+        except Exception as e:
+            logging.error(get_lexicon_with_argument("error", e.args))
+            await message.answer(lexicon["en"]["retry_trouble"])
+            continue
+
+    for event in events:
+        event.was_scheduled = True
+        event_repo.add_event(event)
+
+    """Replying to user"""
+
+    tasks = task_repo.get_task_in_range(
+        message.from_id, ALPHA, current_time.date(), current_time.time()
+    )
+    events = event_repo.get_events_in_range(
+        message.from_id, ALPHA, current_time.date(), current_time.time()
+    )
+
+    await message.answer(PLANNER.print_schedule(tasks, events))
+
+
+@dp.message_handler(state="*", commands=["list"])
+async def show_tasks(message: Message, state: FSMContext):
+    message_text = message.text
+
+    user = get_users_repo().get_user_by_id(message.from_id)
+
+    if user is None:
+        """Please '/start'"""
+        await message.answer(lexicon["en"]["user_not_found"])
+        return
+
+    await message.answer(lexicon["en"]["list_date"])
+    await state.set_state(List.ChooseDate)
+
+
 @dp.message_handler(state=GetBasicInfo.NameOfUser)
 async def get_user_name(message: Message, state: FSMContext):
     message_text = message.text
@@ -182,20 +343,6 @@ async def get_end_day(message: Message, state: FSMContext):
         lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard()
     )
     await state.finish()
-
-
-@dp.message_handler(state="*", commands=["add_task"])
-async def add_task(message: Message, state: FSMContext):
-    repo = get_users_repo()
-    user = repo.get_user_by_id(message.from_id)
-
-    if user is None:
-        """Please enter '/start'"""
-        await message.answer(lexicon["en"]["user_not_found"])
-        return
-
-    await state.set_state(GetTaskInfo.TaskNameState)
-    await message.answer(lexicon["en"]["add_task"])
 
 
 @dp.message_handler(state=GetTaskInfo.TaskNameState)
@@ -286,6 +433,9 @@ async def get_task_date(message: Message, state: FSMContext):
             await message.answer(lexicon["en"]["retry_optional_date"])
             return
 
+        async with state.proxy() as data:
+            data['task_date'] = result
+
     repo = get_tasks_repo()
     async with state.proxy() as data:
         task = parse_task(
@@ -323,22 +473,6 @@ async def get_task_date(message: Message, state: FSMContext):
     await message.answer(
         lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard()
     )
-
-
-@dp.message_handler(state="*", commands=["add_event"])
-async def add_event(message: Message, state: FSMContext):
-    message_text = message.text
-
-    repo = get_users_repo()
-    user = repo.get_user_by_id(message.from_id)
-
-    if user is None:
-        """Please enter '/start'"""
-        await message.answer(lexicon["en"]["user_not_found"])
-        return
-
-    await state.set_state(GetEventInfo.EventNameState)
-    await message.answer(lexicon["en"]["add_event"])
 
 
 @dp.message_handler(state=GetEventInfo.EventNameState)
@@ -599,29 +733,6 @@ async def get_event_repeat_each_number(message: Message, state: FSMContext):
     )
 
 
-@dp.message_handler(commands=["mark_history"])
-async def mark_history(message: Message, state: FSMContext):
-    message_text = message.text
-
-    repo = get_users_repo()
-    user = repo.get_user_by_id(message.from_id)
-
-    if user is None:
-        """Please enter '/start'"""
-        await message.answer(lexicon["en"]["user_not_found"])
-        return
-
-    repo = get_tasks_repo()
-
-    async with state.proxy() as data:
-        keyboard = await get_active_tasks_keyboard(
-            repo.get_active_tasks(user.telegram_id)
-        )
-        await message.answer(lexicon["en"]["mark_history"], reply_markup=keyboard)
-
-    await state.set_state(MarkHistory.ChooseTask)
-
-
 @dp.callback_query_handler(
     lambda c: c.data.startswith("task_"), state=MarkHistory.ChooseTask
 )
@@ -743,110 +854,6 @@ async def marking_history_is_done(message: Message, state: FSMContext):
         lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard()
     )
     await state.finish()
-
-
-@dp.message_handler(commands=["plan"], state="*")
-async def plan_new_schedule(message: Message, state: FSMContext):
-    """
-    Gathering unscheduled tasks and events from user and
-    sends it to model and shows new generated schedule
-    by model
-    """
-
-    message_text = message.text
-
-    await message.answer(lexicon["en"]["plan"])
-
-    task_repo = get_tasks_repo()
-    event_repo = get_events_repo()
-    user_repo = get_users_repo()
-
-    """Gathering unscheduled tasks and events"""
-
-    try:
-        user = user_repo.get_user_by_id(message.from_id)
-
-        if user is None:
-            raise ValueError("Could not find user that made message")
-
-    except Exception as e:
-        logging.error(get_lexicon_with_argument("error", e.args))
-        return
-
-    user_history, user_context = parse_numpy_arr(user.history), parse_numpy_arr(
-        user.context
-    )
-
-    current_time = datetime.datetime.now()
-
-    tasks = task_repo.get_task_in_range(
-        message.from_id, ALPHA, current_time.date(), current_time.time()
-    )
-    events = event_repo.get_events_in_range(
-        message.from_id, ALPHA, current_time.date(), current_time.time()
-    )
-
-    tasks = list(filter(lambda task: task.predicted_start is None, tasks))
-    events = list(filter(lambda event: event.was_scheduled is False, events))
-
-    """Sending to model"""
-
-    new_schedule, user_h, user_c = PLANNER.get_model_schedule(
-        tasks, events, user_history, user_context
-    )
-
-    """Gathering and saving generated information"""
-
-    for new_task_info in new_schedule:
-        try:
-            task = task_repo.get_task_by_id(
-                task_id=new_task_info["task_id"], user_id=message.from_id
-            )
-
-            if task is None:
-                logging.warning("Got unexpected output from db")
-                continue
-
-            task.predicted_start = new_task_info["predicted_start_time"]
-            task.predicted_offset = new_task_info["predicted_offset"]
-            task.predicted_date = new_task_info["predicted_date"]
-            task.predicted_duration = new_task_info["predicted_duration"]
-
-            task_repo.add_task(task)
-        except Exception as e:
-            logging.error(get_lexicon_with_argument("error", e.args))
-            await message.answer(lexicon["en"]["retry_trouble"])
-            continue
-
-    for event in events:
-        event.was_scheduled = True
-        event_repo.add_event(event)
-
-    """Replying to user"""
-
-    tasks = task_repo.get_task_in_range(
-        message.from_id, ALPHA, current_time.date(), current_time.time()
-    )
-    events = event_repo.get_events_in_range(
-        message.from_id, ALPHA, current_time.date(), current_time.time()
-    )
-
-    await message.answer(PLANNER.print_schedule(tasks, events))
-
-
-@dp.message_handler(state="*", commands=["list"])
-async def show_tasks(message: Message, state: FSMContext):
-    message_text = message.text
-
-    user = get_users_repo().get_user_by_id(message.from_id)
-
-    if user is None:
-        """Please '/start'"""
-        await message.answer(lexicon["en"]["user_not_found"])
-        return
-
-    await message.answer(lexicon["en"]["list_date"])
-    await state.set_state(List.ChooseDate)
 
 
 @dp.message_handler(state=List.ChooseDate)
