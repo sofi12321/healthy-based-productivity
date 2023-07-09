@@ -189,8 +189,9 @@ class Preprocessor:
         input_vector = self._transform_cyclical_features(input_vector, start_date, plan_time)
 
         # Update scaler for Duration and then scale Duration
-        self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
-        input_vector['Duration'] = self.duration_scaler.transform(input_vector['Duration'].values.reshape(-1, 1))
+        # self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
+        # input_vector['Duration'] = self.duration_scaler.transform(input_vector['Duration'].values.reshape(-1, 1))
+        input_vector['Duration'] = input_vector['Duration'] / 1440
 
         # Scale Time_Min, Date_Categorical, Plan_Time_Min, Plan_Date_Categorical, Importance
         input_vector['Time_Min'] = input_vector['Time_Min'] / 1440
