@@ -208,8 +208,8 @@ class Preprocessor:
 
         # Convert the output_vector to the same format as an input_vector
         output_vector = pd.DataFrame(output_vector, columns=['start', 'duration', 'refr'])
-        if isinstance(output_vector["end"][0], tuple):
-            output_vector["end"] = output_vector["end"].apply(lambda x: x[0])
+        if isinstance(output_vector["duration"][0], tuple):
+            output_vector["duration"] = output_vector["duration"].apply(lambda x: x[0])
 
         return input_vector, type_vector, output_vector
 
