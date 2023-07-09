@@ -21,6 +21,7 @@ class GetEventInfo(StatesGroup):
     EventStartTimeState = State()
     EventDurationState = State()
     EventDateState = State()
+    EventRepeatIsNeeded = State()
     EventRepeatEachNumberState = State()
     EventRepeatEachArgumentState = State()
     EventRepeatNumberOfRepetitions = State()

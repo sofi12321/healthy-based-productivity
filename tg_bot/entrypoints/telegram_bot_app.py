@@ -37,7 +37,7 @@ from tg_bot.utils.utils import (
 )
 from tg_bot.adapters.repositories import get_events_repo, get_tasks_repo, get_users_repo
 
-from tg_bot.keyboards.keyboards import get_active_tasks_keyboard
+from tg_bot.keyboards.keyboards import get_active_tasks_keyboard, get_start_buttons_keyboard
 from tg_bot.domain.domain import Task
 
 from Structure.plan import Planner
@@ -81,7 +81,7 @@ async def process_start_command(message: Message, state: FSMContext):
     user = repo.get_user_by_id(user_id)
 
     if user is not None:
-        await message.reply(lexicon["en"]["hello"])
+        await message.reply(lexicon["en"]["hello"], reply_markup=await get_start_buttons_keyboard())
         return
 
     await state.set_state(GetBasicInfo.NameOfUser)
@@ -151,7 +151,7 @@ async def get_end_day(message: Message, state: FSMContext):
 
     if user is None:
         logging.error(get_lexicon_with_argument("error", data.as_dict()))
-        await message.answer(lexicon["en"]["retry_trouble"])
+        await message.answer(lexicon["en"]["retry_trouble"], reply_markup=await get_start_buttons_keyboard())
         await state.finish()
         return
 
@@ -160,11 +160,11 @@ async def get_end_day(message: Message, state: FSMContext):
         repo.add_user(user)
     except Exception as e:
         logging.error(get_lexicon_with_argument("error", e.args))
-        await message.answer(lexicon["en"]["retry_trouble"])
+        await message.answer(lexicon["en"]["retry_trouble"], reply_markup=await get_start_buttons_keyboard())
         await state.finish()
         return
 
-    await message.answer(lexicon["en"]["write_success"])
+    await message.answer(lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard())
     await state.finish()
 
 
@@ -284,7 +284,8 @@ async def get_task_date(message: Message, state: FSMContext):
     if task is None:
         # Error
         logging.error(get_lexicon_with_argument("error", data.as_dict()))
-        await message.answer(lexicon["en"]["retry_trouble"])
+        await message.answer(lexicon["en"]["retry_trouble"], reply_markup=await get_start_buttons_keyboard())
+        await state.finish()
         return
 
     try:
@@ -292,11 +293,12 @@ async def get_task_date(message: Message, state: FSMContext):
     except Exception as e:
         # Error
         logging.error(get_lexicon_with_argument("error", e.args))
-        await message.answer(lexicon["en"]["retry_trouble"])
+        await message.answer(lexicon["en"]["retry_trouble"], reply_markup=await get_start_buttons_keyboard())
+        await state.finish()
         return
 
     await state.finish()
-    await message.answer(lexicon["en"]["write_success"])
+    await message.answer(lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard())
 
 
 @dp.message_handler(state="*", commands=["add_event"])
@@ -383,8 +385,65 @@ async def get_event_date(message: Message, state: FSMContext):
         async with state.proxy() as data:
             data["event_date"] = result
 
-    await state.set_state(state=GetEventInfo.EventRepeatEachNumberState)
-    await message.answer(lexicon["en"]["event_repeat_each_number"])
+    await state.set_state(state=GetEventInfo.EventRepeatIsNeeded)
+    await message.answer(lexicon["en"]["event_want_repeat"])
+
+
+@dp.message_handler(state=GetEventInfo.EventRepeatIsNeeded)
+async def event_want_repeat(message: Message, state: FSMContext):
+    message_text = message.text
+    message_text = message_text.strip().lower()
+
+    result = None
+
+    if message_text == "yes":
+        result = True
+
+    if message_text == "no":
+        result = False
+
+    if result is None:
+        """Please retry"""
+
+        await message.answer(lexicon['en']['retry_yesno'])
+        return
+
+    if result:
+        await message.answer(lexicon['en']['event_repeat_each_number'])
+        await state.set_state(GetEventInfo.EventRepeatEachNumberState)
+        return
+
+    async with state.proxy() as data:
+        dates = data.get('event_date')
+
+        if dates is not None:
+            dates = [dates]
+
+        event = parse_event(
+            user_id=message.from_id,
+            event_name=data.get('event_name'),
+            start_time=data.get('event_start_time'),
+            duration=data.get('event_duration'),
+            dates=dates
+        )
+
+        if event is None:
+            logging.error(get_lexicon_with_argument('error', f'Could not parse event: {data.as_dict()}'))
+            await message.answer(lexicon['en']['retry_trouble'], reply_markup=await get_start_buttons_keyboard())
+            await state.finish()
+            return
+
+    repo = get_events_repo()
+    try:
+        repo.add_event(event)
+    except Exception as e:
+        logging.error(get_lexicon_with_argument('error', f'Could not save to db: {e.args}'))
+        await message.answer(lexicon['en']['retry_trouble'], reply_markup=await get_start_buttons_keyboard())
+        await state.finish()
+        return
+
+    await message.answer(lexicon['write_success'], reply_markup=await get_start_buttons_keyboard())
+    await state.finish()
 
 
 @dp.message_handler(state=GetEventInfo.EventRepeatEachNumberState)
@@ -394,7 +453,7 @@ async def get_event_repeat_each_number(message: Message, state: FSMContext):
 
     if message_text.lower() == "no":
         """TODO: Get event, write event to db"""
-        await message.answer(lexicon["en"]["write_success"])
+        await message.answer(lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard())
         await state.finish()
         return
 
@@ -454,7 +513,7 @@ async def get_event_repeat_each_number(message: Message, state: FSMContext):
                     "error", f"Could not parse dates: \n\t{data.as_dict()}\n\t{result}"
                 )
             )
-            await message.answer(lexicon["en"]["retry_trouble"])
+            await message.answer(lexicon["en"]["retry_trouble"], reply_markup=await get_start_buttons_keyboard())
             await state.finish()
             return
 
@@ -472,7 +531,7 @@ async def get_event_repeat_each_number(message: Message, state: FSMContext):
                     "error", f"Could not parse events: \n\t{dates},\n\t{data.as_dict()}"
                 )
             )
-            await message.answer(lexicon["en"]["retry_trouble"])
+            await message.answer(lexicon["en"]["retry_trouble"], reply_markup=await get_start_buttons_keyboard())
             await state.finish()
             return
     try:
@@ -480,11 +539,12 @@ async def get_event_repeat_each_number(message: Message, state: FSMContext):
         repo.add_many_events(events)
     except Exception as e:
         logging.error(get_lexicon_with_argument("error", e.args))
-        await message.answer(lexicon["en"]["retry_trouble"])
+        await message.answer(lexicon["en"]["retry_trouble"], reply_markup=await get_start_buttons_keyboard())
+        await state.finish()
         return
 
     await state.finish()
-    await message.answer(lexicon["en"]["write_success"])
+    await message.answer(lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard())
 
 
 @dp.message_handler(commands=["mark_history"])
@@ -609,7 +669,7 @@ async def marking_history_is_done(message: Message, state: FSMContext):
         task.is_done = data.get("is_done")
         repo.add_task(task)
 
-    await message.answer(lexicon["en"]["write_success"])
+    await message.answer(lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard())
     await state.finish()
 
 
