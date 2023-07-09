@@ -1,5 +1,6 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-from tg_bot.domain.domain import Task
+from tg_bot.domain.domain import Task, Event
+from typing import Optional
 
 
 async def get_active_tasks_keyboard(active_tasks: [Task]) -> InlineKeyboardMarkup:
@@ -31,3 +32,18 @@ async def get_start_buttons_keyboard() -> ReplyKeyboardMarkup:
     keyboard = keyboard.row(*buttons)
 
     return keyboard
+
+
+async def get_back_button_keyboard(keyboard: Optional[ReplyKeyboardMarkup] = None) -> ReplyKeyboardMarkup:
+    if keyboard is None:
+        keyboard: ReplyKeyboardMarkup = ReplyKeyboardMarkup()
+
+    return keyboard.add(
+        InlineKeyboardButton("Back", callback_data='listtaskback')
+    )
+
+
+async def get_tasks_events_keyboard(tasks: [Task], events: [Event]) -> InlineKeyboardMarkup:
+    keyboard = InlineKeyboardMarkup()
+
+    pass

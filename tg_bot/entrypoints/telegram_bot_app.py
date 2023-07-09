@@ -19,6 +19,7 @@ from tg_bot.states.states import (
     GetTaskInfo,
     GetEventInfo,
     MarkHistory,
+    List
 )
 from tg_bot.lexicon.lexicon import lexicon, get_lexicon_with_argument
 from tg_bot.utils.utils import (
@@ -570,7 +571,7 @@ async def mark_history(message: Message, state: FSMContext):
     await state.set_state(MarkHistory.ChooseTask)
 
 
-@dp.callback_query_handler(lambda c: "task_" in c.data, state=MarkHistory.ChooseTask)
+@dp.callback_query_handler(lambda c: c.data.startwith('task_'), state=MarkHistory.ChooseTask)
 async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext):
     message_text: str = callback_query.message.text
     task_id_str = callback_query.data.removeprefix("task_")
@@ -707,8 +708,6 @@ async def plan_new_schedule(message: Message, state: FSMContext):
         user.context
     )
 
-    print(user_history, user_context)
-
     current_time = datetime.datetime.now()
 
     tasks = task_repo.get_task_in_range(
@@ -760,3 +759,45 @@ async def plan_new_schedule(message: Message, state: FSMContext):
     )
 
     await message.answer(PLANNER.print_schedule(tasks, events))
+
+
+@dp.message_handler(state='*', commands['list'])
+def show_tasks(message: Message, state: FSMContext):
+    message_text = message.text
+
+    user = get_users_repo().get_user_by_id(message.from_id)
+
+    if user is None:
+        """Please '/start'"""
+        await message.answer(lexicon['en']['user_not_found'])
+        return
+
+    await message.answer(lexicon['en']['list_date'])
+    await state.set_state(List.ChooseDate)
+
+
+@dp.message_handler(state=List.ChooseDate)
+def choose_date_to_list(message: Message, state: FSMContext):
+    message_text = message.text
+
+    result = parse_date(message_text)
+
+    if message_text.strip().lower() == "today":
+        result = datetime.date.today()
+
+    if message_text.strip().lower() == "tomorrow":
+        result = datetime.date.today() + datetime.timedelta(days=1)
+
+    if result is None:
+        """Please retry"""
+        await message.answer(lexicon['en']['retry_date'])
+        return
+
+    async with state.proxy() as data:
+        data['list_date'] = result
+
+    await message.answer(lexicon['en']['list_task_event'])
+    await state.set_state(List.ListingTasksEvents)
+
+
+# TODO: list

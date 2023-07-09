@@ -32,3 +32,9 @@ class MarkHistory(StatesGroup):
     MarkingHistoryStartTime = State()
     MarkingHistoryDuration = State()
     MarkingHistoryIsDone = State()
+
+
+class List(StatesGroup):
+    ChooseDate = State()
+    ListingTasksEvents = State()
+    ShowingTask = State()

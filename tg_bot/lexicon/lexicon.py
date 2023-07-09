@@ -61,7 +61,10 @@ lexicon = {
         "marking_history_duration": """How long did this process take? (in minutes)""",
        
         "plan": """Today is the most important day of your life. And I'm happy that you're planning it! I'll do my best to create an optimal schedule for you""",
-        
+
+        "list_date": "Please, enter date to list",
+        "list_task_event": "Tasks and event of the given date are listed below",
+
         # retries
         "retry_int": "Please, write an integer",
         "retry_optional_time": "Small reminder, I understand time only in this formats:\n13:00 or 1:00PM. If it does not have a specific start time, you can write 'no'",
@@ -70,7 +73,10 @@ lexicon = {
         "retry_time": """Ups, can you, please, repeat the time in this format: '13:00' or '1:00AM'?""",
         "retry_trouble": "Sorry, some mistake have occured. Please, try again",
         "error": "I got unexpected error: \n{}",
-        "retry_yesno": "This is a simple question, just write 'yes' or 'no'"
+        "retry_yesno": "This is a simple question, just write 'yes' or 'no'",
+
+        "retry_date": "Please, write date in format: 1/1/1970"
+
         
         # "ask_history": """Please, enter history in the following format:\n\t
         # [start_time]-[end_time]-[is_done (true or false)]""",
