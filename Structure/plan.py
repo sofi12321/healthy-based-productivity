@@ -128,7 +128,7 @@ class Planner:
         Update available time slots based on the scheduled task
         :param prediction: tensor contains 3 number alpha related: start_time, duration, offset
         """
-        time, duration, offset = prediction[0], prediction[1], prediction[2]
+        time, duration, offset = prediction[0].item(), prediction[1].item(), prediction[2].item()
         # print("вход слотов", time, duration, offset)
         self.available_time_slots = self.update_slot(time, max(duration, duration + offset), self.available_time_slots)
 
@@ -266,8 +266,9 @@ class Planner:
 
         # TODO: DELETE THIS
         print(f"Output prediction: {prediction}")
-
-        return prediction, new_h, new_c
+        
+        # [[1,2,3]]
+        return prediction[0], new_h, new_c
 
     def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
         """
@@ -279,7 +280,7 @@ class Planner:
         :param plan_time: datetime when /plan was called
         :return: dictionary to save data in database
         """
-        time, duration, offset = prediction[0], prediction[1], prediction[2]
+        time, duration, offset = prediction[0].item(), prediction[1].item(), prediction[2].item()
         task_datetime_user, duration_user, offset_user = self.converter.model_to_user(time, duration, offset,
                                                                                       current_date=plan_time)
         return {'task_id': task_id,
@@ -427,7 +428,6 @@ class Planner:
                 flag_plan = True
             order[event.start_time] = ['event', event]
 
-
         sorted_order = sorted(order.keys())
 
         for t in sorted_order:
@@ -461,7 +461,7 @@ class Planner:
                 output_schedule += "Please, call /plan to add not scheduled events"
         elif len(tasks_not_done) < 1:
             output_schedule += "Please, call /plan to add not scheduled tasks"
-        elif len(output_schedule)<1:
+        elif len(output_schedule) < 1:
             output_schedule += "Please, add tasks and events first using /add_task or /add_event"
         return output_schedule
 
