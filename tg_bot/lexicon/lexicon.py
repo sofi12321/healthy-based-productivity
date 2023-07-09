@@ -5,29 +5,29 @@ lexicon = {
     "en": {
         'user_not_found': "Hello, I don't know you. Please, write /start to register.",
 
-        "first_hello": """Hello, I'm a bot that will help
-                        you create a daily schedule. My name is InnoPlanner, and
+        "first_hello": """Hello, I'm a bot that will help\
+                        you create a daily schedule. My name is InnoPlanner, and \
                         how should I call you?""",
         "retry_name": "Can you, please, shorten your name a bit (at max 255 symbols)?",
 
-        "basic_info_start_of_day": """Now we now the names of each other! Let me say few words about me. 
-                        You probably know that it can be hard to set a realistic time for a event during scheduling. 
-                        I will analyze your event history and make your daily schedule fit your habits. 
-                        Of course, I can't force you to complete tasks as I suggested, but I hope that my advice 
-                        will help your productivity and life balance.\n
-                        My main job is to determine the order of tasks, start time, and duration. 
-                        However, all of this will be regulated using breaks between tasks.\n\n
-                        
-                        Not to distract you, please enter the time at which you usually do tasks.\n
-                        Now write the time when you start your day in a format:\n
+        "basic_info_start_of_day": """Now we now the names of each other! Let me say few words about me. \
+                        You probably know that it can be hard to set a realistic time for a event during scheduling. \
+                        I will analyze your event history and make your daily schedule fit your habits. \
+                        Of course, I can't force you to complete tasks as I suggested, but I hope that my advice \
+                        will help your productivity and life balance.\n\
+                        My main job is to determine the order of tasks, start time, and duration. \
+                        However, all of this will be regulated using breaks between tasks.\n\n\
+                        \
+                        Not to distract you, please enter the time at which you usually do tasks.\n\
+                        Now write the time when you start your day in a format:\n\
                         '13:00' or '1:00AM'""",
 
         "basic_info_end_of_day": """And at which time do you end your day?""",
-        "end_first_hello": """Now we can start planning! Let me explain how to work with me. \n
-                        Here are 2 concepts: events and tasks. Events are ones that have a precise start time and 
-                        duration, I will never change these parameters. \n
-                        Tasks are items you want to complete during the day. Here you can specify the importance, 
-                        the assumed start time and duration. Based on your history, I will modify the event parameters 
+        "end_first_hello": """Now we can start planning! Let me explain how to work with me. \n\
+                        Here are 2 concepts: events and tasks. Events are ones that have a precise start time and \
+                        duration, I will never change these parameters. \n\
+                        Tasks are items you want to complete during the day. Here you can specify the importance, \
+                        the assumed start time and duration. Based on your history, I will modify the event parameters \ 
                         so that you get it done and feel good! """,
         # "formats": """Sometimes I may not understand what you are writing. Don't worry, we have a way to communicate! When you answer my questions, please use these formats:
         # \nDate
