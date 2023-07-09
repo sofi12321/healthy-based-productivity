@@ -42,7 +42,7 @@ class Converter:
         return task_date_model, duration_model, offset_model
 
     def out_to_features(self, old_features, out):
-        out = self.model_to_user(out[0], out[1], out[2])
+        out_converted = self.model_to_user(out[0], out[1].item(), out[2].item())
 
         df = pd.DataFrame(
             columns=['Label Number',
@@ -64,17 +64,21 @@ class Converter:
                 label_number = i
                 break
         importance = 0
-        start_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[7] * 365 - 1)
-        plan_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[9] * 365 - 1)
+        for i in range(5, 9):
+            if old_features[i] == 1:
+                importance = i - 5
+                break
+        start_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[12] * 365 - 1)
+        plan_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[20] * 365 - 1)
         df.loc[len(df)] = {'Label Number': label_number,
-                           'Duration': out[1],
-                           'Importance': old_features[5],
-                           'Time_Min': out[0].minute + out[0].hour * 60,
-                           'Date_Categorical': old_features[7] * 365,
+                           'Duration': out_converted[1],
+                           'Importance': importance,
+                           'Time_Min': out_converted[0].minute + out_converted[0].hour * 60,
+                           'Date_Categorical': old_features[12] * 365,
                            'Date_Day': start_date.day,
                            'Date_Month': start_date.month,
-                           'Plan_Time_Min': old_features[8] * 1440,
-                           'Plan_Date_Categorical': old_features[9] * 365,
+                           'Plan_Time_Min': old_features[17] * 1440,
+                           'Plan_Date_Categorical': old_features[20] * 365,
                            'Plan_Date_Day': plan_date.day,
                            'Plan_Date_Month': plan_date.month}
 
