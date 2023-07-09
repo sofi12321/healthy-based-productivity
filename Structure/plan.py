@@ -22,7 +22,7 @@ class Planner:
     def __init__(self, alpha=1440):
         # TODO: All the parameters should be in configured after training
         self.scheduler = SC_LSTM(
-            in_features=25,
+            in_features=22,
             lstm_layers=1,
             hidden=124,
             hidden_injector=64,
@@ -134,7 +134,11 @@ class Planner:
         Update available time slots based on the scheduled task
         :param prediction: tensor contains 3 number alpha related: start_time, duration, offset
         """
-        time, duration, offset = prediction[0], prediction[1], prediction[2]
+        time, duration, offset = (
+            prediction[0].item(),
+            prediction[1].item(),
+            prediction[2].item(),
+        )
         # print("вход слотов", time, duration, offset)
         self.available_time_slots = self.update_slot(
             time, max(duration, duration + offset), self.available_time_slots
@@ -283,6 +287,7 @@ class Planner:
         # TODO: DELETE THIS
         print(f"Output prediction: {prediction}")
 
+        # [[1,2,3]]
         return prediction[0], new_h, new_c
 
     def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
@@ -466,7 +471,6 @@ class Planner:
             if not event.was_scheduled:
                 flag_plan = True
             order[event.start_time] = ["event", event]
-
         sorted_order = sorted(order.keys())
 
         for t in sorted_order:
