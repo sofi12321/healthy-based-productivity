@@ -27,10 +27,10 @@ class Preprocessor:
                      'Date_Categorical',
                      'Date_Day',
                      'Date_Month',
-                     'Plan_Time_Min',
-                     'Plan_Date_Categorical',
-                     'Plan_Date_Day',
-                     'Plan_Date_Month'
+                     # 'Plan_Time_Min',
+                     # 'Plan_Date_Categorical',
+                     # 'Plan_Date_Day',
+                     # 'Plan_Date_Month'
                      ]
         )
         return df
@@ -81,19 +81,20 @@ class Preprocessor:
         transformed_data['Date_Month_cos'] = np.cos(2 * np.pi * data['Date_Month'] / 12)
 
         # Transform Plan_Time_Min feature
-        transformed_data['Plan_Time_Min_sin'] = np.sin(2 * np.pi * data['Plan_Time_Min'] / 1440)
-        transformed_data['Plan_Time_Min_cos'] = np.cos(2 * np.pi * data['Plan_Time_Min'] / 1440)
-
-        # Transform Plan_Date_Day feature
-        transformed_data['Plan_Date_Day_sin'] = np.sin(2 * np.pi * data['Plan_Date_Day'] / num_days_plan)
-        transformed_data['Plan_Date_Day_cos'] = np.cos(2 * np.pi * data['Plan_Date_Day'] / num_days_plan)
-
-        # Transform Plan_Date_Month feature
-        transformed_data['Plan_Date_Month_sin'] = np.sin(2 * np.pi * data['Plan_Date_Month'] / 12)
-        transformed_data['Plan_Date_Month_cos'] = np.cos(2 * np.pi * data['Plan_Date_Month'] / 12)
+        # transformed_data['Plan_Time_Min_sin'] = np.sin(2 * np.pi * data['Plan_Time_Min'] / 1440)
+        # transformed_data['Plan_Time_Min_cos'] = np.cos(2 * np.pi * data['Plan_Time_Min'] / 1440)
+        #
+        # # Transform Plan_Date_Day feature
+        # transformed_data['Plan_Date_Day_sin'] = np.sin(2 * np.pi * data['Plan_Date_Day'] / num_days_plan)
+        # transformed_data['Plan_Date_Day_cos'] = np.cos(2 * np.pi * data['Plan_Date_Day'] / num_days_plan)
+        #
+        # # Transform Plan_Date_Month feature
+        # transformed_data['Plan_Date_Month_sin'] = np.sin(2 * np.pi * data['Plan_Date_Month'] / 12)
+        # transformed_data['Plan_Date_Month_cos'] = np.cos(2 * np.pi * data['Plan_Date_Month'] / 12)
 
         # Drop old features except Time_Min and Plan_Time_Min because it is used as feature for model
-        transformed_data.drop(columns=['Date_Day', 'Date_Month', 'Plan_Date_Day', 'Plan_Date_Month'], inplace=True)
+        # transformed_data.drop(columns=['Date_Day', 'Date_Month', 'Plan_Date_Day', 'Plan_Date_Month'], inplace=True)
+        transformed_data.drop(columns=['Date_Day', 'Date_Month'], inplace=True)
 
         return transformed_data
 
@@ -132,10 +133,11 @@ class Preprocessor:
                                                'Date_Categorical': int(start_date.strftime("%j")),
                                                'Date_Day': start_day,
                                                'Date_Month': start_month,
-                                               'Plan_Time_Min': plan_time.minute + plan_time.hour * 60,
-                                               'Plan_Date_Categorical': int(plan_time.strftime("%j")),
-                                               'Plan_Date_Day': plan_time.day,
-                                               'Plan_Date_Month': plan_time.month}
+                                               # 'Plan_Time_Min': plan_time.minute + plan_time.hour * 60,
+                                               # 'Plan_Date_Categorical': int(plan_time.strftime("%j")),
+                                               # 'Plan_Date_Day': plan_time.day,
+                                               # 'Plan_Date_Month': plan_time.month
+                                               }
 
         return self.preprocess_activity(input_vector, start_date, plan_time)
 
@@ -174,14 +176,21 @@ class Preprocessor:
                                                'Date_Categorical': int(start_date.strftime("%j")),
                                                'Date_Day': start_day,
                                                'Date_Month': start_month,
-                                               'Plan_Time_Min': plan_time.minute + plan_time.hour * 60,
-                                               'Plan_Date_Categorical': int(plan_time.strftime("%j")),
-                                               'Plan_Date_Day': plan_time.day,
-                                               'Plan_Date_Month': plan_time.month}
+                                               # 'Plan_Time_Min': plan_time.minute + plan_time.hour * 60,
+                                               # 'Plan_Date_Categorical': int(plan_time.strftime("%j")),
+                                               # 'Plan_Date_Day': plan_time.day,
+                                               # 'Plan_Date_Month': plan_time.month
+                                               }
 
         return self.preprocess_activity(input_vector, start_date, plan_time)
 
     def preprocess_activity(self, input_vector, start_date, plan_time):
+        # convert Time_Min to alpha format
+        max_time = plan_time + datetime.timedelta(minutes=1440)
+        start_date = datetime.datetime(start_date.year, start_date.month, start_date.day,
+                                       input_vector['Time_Min'][0] // 60, input_vector['Time_Min'][0] % 60)
+        input_vector['Time_Min'] = (start_date - plan_time) / (max_time - plan_time)
+
         # Encode label number
         input_vector = self._encode(input_vector, "Label Number")
 
@@ -189,29 +198,36 @@ class Preprocessor:
         input_vector = self._transform_cyclical_features(input_vector, start_date, plan_time)
 
         # Update scaler for Duration and then scale Duration
-        # self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
-        # input_vector['Duration'] = self.duration_scaler.transform(input_vector['Duration'].values.reshape(-1, 1))
-        input_vector['Duration'] = input_vector['Duration'] / 1440
+        self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
+        input_vector['Duration'] = self.duration_scaler.transform(input_vector['Duration'].values.reshape(-1, 1))
+        # input_vector['Duration'] = input_vector['Duration'] / 1440
 
         # Scale Time_Min, Date_Categorical, Plan_Time_Min, Plan_Date_Categorical, Importance
-        input_vector['Time_Min'] = input_vector['Time_Min'] / 1440
+        # input_vector['Time_Min'] = input_vector['Time_Min'] / 1440
         input_vector['Date_Categorical'] = input_vector['Date_Categorical'] / 365
-        input_vector['Plan_Time_Min'] = input_vector['Plan_Time_Min'] / 1440
-        input_vector['Plan_Date_Categorical'] = input_vector['Plan_Date_Categorical'] / 365
+        # input_vector['Plan_Time_Min'] = input_vector['Plan_Time_Min'] / 1440
+        # input_vector['Plan_Date_Categorical'] = input_vector['Plan_Date_Categorical'] / 365
         input_vector['Importance'] = input_vector['Importance'] / 4
 
         # Rearrange columns of input vector
+        # input_vector = input_vector[['Label Number_0', 'Label Number_1', 'Label Number_2', 'Label Number_3',
+        #                              'Duration',
+        #                              'Importance',
+        #                              'Time_Min', 'Time_Min_sin', 'Time_Min_cos',
+        #                              'Date_Categorical',
+        #                              'Date_Day_sin', 'Date_Day_cos',
+        #                              'Date_Month_sin', 'Date_Month_cos',
+        #                              'Plan_Time_Min', 'Plan_Time_Min_sin', 'Plan_Time_Min_cos',
+        #                              'Plan_Date_Categorical',
+        #                              'Plan_Date_Day_sin', 'Plan_Date_Day_cos',
+        #                              'Plan_Date_Month_sin', 'Plan_Date_Month_cos']]
         input_vector = input_vector[['Label Number_0', 'Label Number_1', 'Label Number_2', 'Label Number_3',
                                      'Duration',
                                      'Importance',
                                      'Time_Min', 'Time_Min_sin', 'Time_Min_cos',
                                      'Date_Categorical',
                                      'Date_Day_sin', 'Date_Day_cos',
-                                     'Date_Month_sin', 'Date_Month_cos',
-                                     'Plan_Time_Min', 'Plan_Time_Min_sin', 'Plan_Time_Min_cos',
-                                     'Plan_Date_Categorical',
-                                     'Plan_Date_Day_sin', 'Plan_Date_Day_cos',
-                                     'Plan_Date_Month_sin', 'Plan_Date_Month_cos']]
+                                     'Date_Month_sin', 'Date_Month_cos']]
 
         return input_vector.loc[0].to_numpy()
 
@@ -223,7 +239,7 @@ class Preprocessor:
 #     event = Event(telegram_id=1, event_name='test', duration=30, start_time=datetime.time(12, 30),
 #                   date=datetime.date(2021, 5, 1))
 #     preprocessor = Preprocessor()
-#     input_vector = preprocessor.preprocess_task(task, 0, datetime.datetime(2021, 5, 1, 12, 30))
+#     input_vector = preprocessor.preprocess_task(task, 0, datetime.datetime(2021, 5, 1, 12, 0))
 #     print(input_vector)
-#     input_vector = preprocessor.preprocess_event(event, 0, datetime.datetime(2021, 5, 1, 12, 30))
+#     input_vector = preprocessor.preprocess_event(event, 0, datetime.datetime(2021, 5, 1, 12, 0))
 #     print(input_vector)
