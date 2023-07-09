@@ -31,7 +31,7 @@ class Planner:
 
         # Load model weights
         # TODO: UNCOMMENT THIS
-        self.scheduler.load_state_dict(load("../Model/sc_lstm_weights.pth"))
+        self.scheduler.load_state_dict(load("Model/sc_lstm_weights.pth"))
 
         # Set the model to evaluation mode
         self.scheduler.eval_model()
