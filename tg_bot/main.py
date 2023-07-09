@@ -1,3 +1,5 @@
-from entrypoints.telegram_bot_app import executor, dp
+from tg_bot.entrypoints.telegram_bot_app import executor, dp
 
-executor.start_polling(dp, skip_updates=True)
+
+def run():
+    executor.start_polling(dp, skip_updates=True)

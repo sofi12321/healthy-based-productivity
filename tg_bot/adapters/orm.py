@@ -16,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import registry, mapper, relationship
 import datetime
 
-from domain import domain
+from tg_bot.domain import domain
 
 mapper_registry = registry()
 metadata = mapper_registry.metadata
@@ -28,6 +28,8 @@ users_table = Table(
     Column("user_name", Text, nullable=False),
     Column("start_time", Time, nullable=False),
     Column("end_time", Time, nullable=False),
+    Column("history", Text, nullable=False),
+    Column("context", Text, nullable=False),
 )
 
 tasks_table = Table(
@@ -49,13 +51,19 @@ tasks_table = Table(
     Column("real_start", Time, nullable=True),
     Column("real_duration", Integer, nullable=True),
     Column("real_date", Date, nullable=True),
+
+    Column("predicted_start", Time, nullable=True),
+    Column("predicted_offset", Integer, nullable=True),
+    Column("predicted_duration", Integer, nullable=True),
+    Column("predicted_date", Date, nullable=True),
+
     # Constraints
     CheckConstraint("duration > 0"),
     CheckConstraint("importance >= 0 and importance <= 3"),
     CheckConstraint("real_duration is null or real_duration > 0"),
     CheckConstraint(
         """(is_done is true and real_start is not null and real_duration is not null and real_date is not null)
-        or (is_done is false and real_start is null and real_duration is null and real_date is null)"""
+        or (is_done is false)"""
     ),
 )
 
@@ -74,6 +82,7 @@ events_table = Table(
     Column("duration", Integer, nullable=False),
     Column("date", Date, default=datetime.date.today()),
     Column("repeat_number", Integer, default=0),
+    Column("was_sceduled", Boolean, default=False),
     # Constraits
     CheckConstraint("duration > 0"),
     CheckConstraint("repeat_number >= 0"),

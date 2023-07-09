@@ -16,6 +16,10 @@ class Task:
     real_duration: Optional[int] = None
     real_date: Optional[datetime.date] = None
     task_id: Optional[int] = None
+    predicted_start: Optional[datetime.time] = None
+    predicted_offset: Optional[int] = None
+    predicted_duration: Optional[int] = None
+    predicted_date: Optional[datetime.date] = None
 
 
 @dataclass
@@ -24,6 +28,8 @@ class BasicUserInfo:
     user_name: str
     start_time: datetime.time
     end_time: datetime.time
+    history: str
+    context: str
 
 
 @dataclass
@@ -35,3 +41,4 @@ class Event:
     date: datetime.date = datetime.date.today()
     repeat_number: int = 0
     event_id: Optional[int] = None
+    was_scheduled: bool = False

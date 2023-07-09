@@ -162,11 +162,17 @@ class SC_LSTM(nn.Module):
                 else:
                     free_time_slots_means.append(np.mean(elem))
 
-            # Choose the closest mean to the predicted mean interval
-            best_time_slot_num = np.argmin(np.abs(np.array(free_time_slots_means) - mean_predict_pos))
+            # Choose the closest mean to the predicted mean interval (if it is possible)
+            try:
+                best_time_slot_num = np.argmin(np.abs(np.array(free_time_slots_means) - mean_predict_pos))
 
-            # Get corresponding time slot
-            best_time_slot = free_time_slots[best_time_slot_num]
+                # Get corresponding time slot
+                best_time_slot = free_time_slots[best_time_slot_num]
+
+            # If there is no available time slots, return none
+            except ValueError:
+                return None
+
 
             out = (best_time_slot[0], duration, refr)
 
