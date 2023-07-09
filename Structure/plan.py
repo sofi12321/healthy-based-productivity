@@ -283,7 +283,7 @@ class Planner:
         # TODO: DELETE THIS
         print(f"Output prediction: {prediction}")
 
-        return prediction, new_h, new_c
+        return prediction[0], new_h, new_c
 
     def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
         """
@@ -295,6 +295,7 @@ class Planner:
         :param plan_time: datetime when /plan was called
         :return: dictionary to save data in database
         """
+        print(prediction)
         time, duration, offset = prediction[0], prediction[1], prediction[2]
         task_datetime_user, duration_user, offset_user = self.converter.model_to_user(
             time, duration, offset, current_date=plan_time
