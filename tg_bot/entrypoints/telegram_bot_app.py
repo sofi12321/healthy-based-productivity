@@ -824,7 +824,7 @@ async def plan_new_schedule(message: Message, state: FSMContext):
 
 
 @dp.message_handler(state="*", commands=["list"])
-def show_tasks(message: Message, state: FSMContext):
+async def show_tasks(message: Message, state: FSMContext):
     message_text = message.text
 
     user = get_users_repo().get_user_by_id(message.from_id)
@@ -839,7 +839,7 @@ def show_tasks(message: Message, state: FSMContext):
 
 
 @dp.message_handler(state=List.ChooseDate)
-def choose_date_to_list(message: Message, state: FSMContext):
+async def choose_date_to_list(message: Message, state: FSMContext):
     message_text = message.text
 
     result = parse_date(message_text)
