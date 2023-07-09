@@ -207,7 +207,7 @@ class Preprocessor:
                                      'Plan_Date_Month_sin', 'Plan_Date_Month_cos']]
 
         # Convert the output_vector to the same format as an input_vector
-        output_vector = pd.DataFrame(output_vector, columns=['start', 'end', 'refr'])
+        output_vector = pd.DataFrame(output_vector, columns=['start', 'duration', 'refr'])
         if isinstance(output_vector["end"][0], tuple):
             output_vector["end"] = output_vector["end"].apply(lambda x: x[0])
 
