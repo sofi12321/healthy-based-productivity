@@ -307,11 +307,6 @@ class Planner:
         resulted_schedule = []
         self.set_available_time_slots(tasks, events)
 
-<<<<<<< HEAD
-        # TODO: Sofi
-        not_sch_tasks, not_sch_events = tasks, events
-        print(f"not_sch_task: {not_sch_events}", f"not_sch_events: {not_sch_events}", sep='\n')
-=======
         # Keep only those tasks that were not scheduled before
         tasks_new, events_new = [], []
         for event in events:
@@ -320,7 +315,6 @@ class Planner:
         for task in tasks:
             if not task.predicted_start:
                 tasks_new.append(task)
->>>>>>> main
 
         # Schedule events first. They must be in their places
         for event in events_new:
@@ -342,21 +336,14 @@ class Planner:
             input_vector, activity_type = self.preprocess_task(task, label, plan_time)
 
             # start_time duration offset
-<<<<<<< HEAD
-            model_output, user_h, user_c = self.call_model(activity_type, input_vector, available_time_slots,
-                                                           user_h, user_c)
-            print(f"Task: {task}, model_output: {model_output}")
-=======
             model_output, user_h, user_c = self.call_model(input_vector,activity_type, self.available_time_slots, user_h,
                                                            user_c)
-
->>>>>>> main
             # TODO CHECK SHAPE model output !!!
             task_schedule = self.convert_output_to_schedule(task.task_id, model_output, plan_time)
             resulted_schedule.append(task_schedule)
 
             self.update_available_time_slots_task(model_output)
-            
+
         return resulted_schedule, user_h, user_c
 
     def convert_history_to_output(self, real_date: datetime.date, real_start_time: datetime.time, real_duration: int,
