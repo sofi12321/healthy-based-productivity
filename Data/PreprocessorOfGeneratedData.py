@@ -32,7 +32,7 @@ class Preprocessor:
 
         for j in range(len(label_num)):
             for i in range(num_labels):
-                data.loc[i, encoded_labels[i]] = 1 if i == label_num[j] else 0
+                data.loc[j, encoded_labels[i]] = 1 if i == label_num[j] else 0
         return data
 
     def _transform_cyclical_features(self, data):
@@ -179,6 +179,9 @@ class Preprocessor:
                 current_date=input_vector['Plan_Date'][i]
             )
 
+        # Transform cyclical features
+        input_vector = self._transform_cyclical_features(input_vector)
+
         # convert Time_Min to alpha format
         for i in range(len(input_vector)):
             current_date = input_vector['Plan_Date'][i]
@@ -199,9 +202,6 @@ class Preprocessor:
 
         # Encode label number
         input_vector = self._encode(input_vector, "Label Number")
-
-        # Transform cyclical features
-        input_vector = self._transform_cyclical_features(input_vector)
 
         # Update scaler for Duration and then scale Duration
         self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
@@ -248,7 +248,7 @@ class Preprocessor:
 
 # TODO: Uncomment only for debugging
 # if __name__ == '__main__':
-# 
+#
 #     preprocessor = Preprocessor()
 #     input_vector, type_vector, output_vector = preprocessor.preprocess("schedule_gen.csv")
 #     print(input_vector.columns)
