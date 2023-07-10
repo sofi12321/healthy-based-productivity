@@ -262,6 +262,12 @@ async def show_tasks(message: Message, state: FSMContext):
     await state.set_state(List.ChooseDate)
 
 
+@dp.message_handler(lambda m: m.text.strip().lower() == "formats")
+@dp.message_handler(state="*", commands=["formats"])
+async def show_formats(message: Message, state: FSMContext):
+    await message.answer(lexicon['en']['formats'])
+
+
 @dp.message_handler(state=GetBasicInfo.NameOfUser)
 async def get_user_name(message: Message, state: FSMContext):
     message_text = message.text
@@ -277,6 +283,7 @@ async def get_user_name(message: Message, state: FSMContext):
         data["user_name"] = message_text
 
     await state.set_state(GetBasicInfo.StartOfDay)
+    await message.answer(lexicon['en']['formats'])
     await message.answer(lexicon["en"]["basic_info_start_of_day"])
 
 
@@ -346,7 +353,7 @@ async def get_end_day(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard()
+        lexicon["en"]["end_first_hello"], reply_markup=await get_start_buttons_keyboard()
     )
     await state.finish()
 

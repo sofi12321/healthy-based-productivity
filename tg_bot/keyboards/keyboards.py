@@ -28,7 +28,7 @@ async def get_active_tasks_keyboard(active_tasks: [Task]) -> InlineKeyboardMarku
 
 
 async def get_start_buttons_keyboard() -> ReplyKeyboardMarkup:
-    keyboard_buttons_text = ["+task", "+event", "mark history", "plan", "list"]
+    keyboard_buttons_text = ["+task", "+event", "mark history", "plan", "list", "formats"]
     buttons = list(map(KeyboardButton, keyboard_buttons_text))
 
     print(buttons)
