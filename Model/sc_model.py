@@ -52,7 +52,7 @@ class SC_LSTM(nn.Module):
             nn.ReLU()
         )
 
-    def forward(self, x, task_type='', free_time_slots='', save_states=False):
+    def forward(self, x, task_type='', free_time_slots='', save_states=False, plan_time=None):
         """
         Forward pass of the model.
         :param x: input feature vector.
@@ -69,7 +69,7 @@ class SC_LSTM(nn.Module):
                 return self.__plan_non_resched(x, save_states)
 
             elif task_type == 'resched':
-                return self.__plan_resched(x, free_time_slots, save_states)
+                return self.__plan_resched(x, free_time_slots, save_states, plan_time)
 
 
         elif self.training:
@@ -108,7 +108,7 @@ class SC_LSTM(nn.Module):
 
 
 
-    def __plan_resched(self, x, free_time_slots, save_states):
+    def __plan_resched(self, x, free_time_slots, save_states, plan_time):
         """
         A function to plan a reschedulable task. It changes
         correspondingly the behavior of the model and filter the output
@@ -127,7 +127,6 @@ class SC_LSTM(nn.Module):
         # Create a coppy of free time slots
         free_time_slots = np.copy(free_time_slots)
         if self.__check_overlay(out, free_time_slots):
-            # TODO: SHOULD THE MODEL USE AN OUTPUT DURATION AND REFR, OR USE USER DEFINED ONES?
             # Unpack torch tensors times into 3 variables and convert them to numpy
             start, duration, refr = out[0][0].item(), out[0][1].item(), out[0][2].item()
 
@@ -160,12 +159,11 @@ class SC_LSTM(nn.Module):
             except ValueError:
                 return None
 
-
-            out = (best_time_slot[0], duration, refr)
+            out = torch.tensor(([[best_time_slot[0], duration, refr]]))
 
             if save_states:
                 # Convert output (,3) and x (,11) to the input model format (,11)
-                new_x = self.converter.out_to_features(x, out)
+                new_x = self.converter.out_to_features(x, out, plan_time)
                 self.__use_injector(new_x)
             return out
 

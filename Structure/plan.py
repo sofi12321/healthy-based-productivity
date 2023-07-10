@@ -192,7 +192,7 @@ class Planner:
             - vector of output features describing given event,
             - time when the event was planned by user
         """
-        input_vector = self.preprocessor.preprocess_event(event, label)
+        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
         activity_type = "non-resched"
 
         return input_vector, activity_type
@@ -234,7 +234,7 @@ class Planner:
 
         return input_vector, activity_type
 
-    def call_model(self, input_features, task_type, available_time_slots, user_h, user_c):
+    def call_model(self, input_features, task_type, available_time_slots, user_h, user_c, plan_time):
         """
         Perform scheduling for an event or event.
         :param task_type: event for non-reschedulable, task for reschedulable
@@ -259,7 +259,8 @@ class Planner:
         prediction = self.scheduler.forward(input_features,
                                             task_type=task_type,
                                             free_time_slots=available_time_slots,
-                                            save_states=True)
+                                            save_states=True,
+                                            plan_time=plan_time)
 
         # Get new user states
         new_h, new_c = self.scheduler.get_states()
@@ -321,8 +322,12 @@ class Planner:
             label = 0
             # label = self.label_handling(event.event_name)
             input_vector, activity_type = self.preprocess_event(event, label, plan_time)
-            _, user_h, user_c = self.call_model(input_vector, activity_type, self.available_time_slots,
-                                                user_h, user_c)
+            _, user_h, user_c = self.call_model(input_vector,
+                                                activity_type,
+                                                self.available_time_slots,
+                                                user_h,
+                                                user_c,
+                                                plan_time)
             self.update_available_time_slots_event(event)
 
         # Sort tasks to help the model
@@ -335,9 +340,12 @@ class Planner:
             input_vector, activity_type = self.preprocess_task(task, label, plan_time)
 
             # start_time duration offset
-            model_output, user_h, user_c = self.call_model(input_vector, activity_type, self.available_time_slots,
+            model_output, user_h, user_c = self.call_model(input_vector,
+                                                           activity_type,
+                                                           self.available_time_slots,
                                                            user_h,
-                                                           user_c)
+                                                           user_c,
+                                                           plan_time)
             # TODO CHECK SHAPE model output !!!
             task_schedule = self.convert_output_to_schedule(task.task_id, model_output, plan_time)
             resulted_schedule.append(task_schedule)
