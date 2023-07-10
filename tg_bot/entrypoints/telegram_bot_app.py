@@ -764,13 +764,15 @@ async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext)
             await callback_query.answer("No tasks")
             return
         else:
-            await callback_query.message.answer(
+            await bot.edit_message_text(
                 f"""Task:
                 Task name: {task.task_name}\t
                 Task duration: {task.duration}\t
                 Task importance: {task.importance}\t
                 Task start time: {task.start_time or "No time"}\t
-                Task date: {task.date or "No date"}\n"""
+                Task date: {task.date or "No date"}\n""",
+                chat_id=callback_query.from_user.id,
+                message_id=callback_query.message.message_id
             )
             await callback_query.message.answer(
                 lexicon["en"]["marking_history_is_done"]
