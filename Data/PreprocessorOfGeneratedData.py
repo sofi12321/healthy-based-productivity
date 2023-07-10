@@ -174,7 +174,7 @@ class Preprocessor:
                     hour=input_vector['Time_Min'][i] // 60,
                     minute=input_vector['Time_Min'][i] % 60
                 ),
-                duration=int(input_vector['Duration'][i]),
+                duration=int(input_vector['Duration'][i]) + shift,
                 offset=shift,
                 current_date=input_vector['Plan_Date'][i]
             )
