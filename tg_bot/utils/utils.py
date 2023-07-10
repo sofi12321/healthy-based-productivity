@@ -1,7 +1,7 @@
 import datetime
 import logging
 import numpy as np
-from typing import TypeAlias, Optional, Tuple, List
+from typing import TypeAlias, Optional, Tuple, List, Union
 from tg_bot.domain.domain import Task, Event, BasicUserInfo
 
 from torch import tensor, float32, Tensor
@@ -35,7 +35,7 @@ def numpy_to_string(numpy_arr: np.float32) -> str:
     for elem in numpy_arr:
         new_arr.append(str(elem))
 
-    return ' '.join(new_arr)
+    return " ".join(new_arr)
 
 
 def parse_numpy_arr(numpy_arr_str: str) -> Optional[Tensor]:
@@ -43,7 +43,9 @@ def parse_numpy_arr(numpy_arr_str: str) -> Optional[Tensor]:
         logging.warning("Got unexpected type")
         return None
 
-    return tensor(np.array([np.fromstring(numpy_arr_str, dtype=float, sep=' ')]), dtype=float32)
+    return tensor(
+        np.array([np.fromstring(numpy_arr_str, dtype=float, sep=" ")]), dtype=float32
+    )
 
 
 def day_of_week(day_str: str) -> Optional[int]:
@@ -73,7 +75,11 @@ def check_repeat_each_argument(repeat_argument: str) -> Optional[bool]:
 
     repeat_argument = repeat_argument.strip().lower()
 
-    return day_of_week(repeat_argument) is not None or repeat_argument in ['day', 'week', 'month']
+    return day_of_week(repeat_argument) is not None or repeat_argument in [
+        "day",
+        "week",
+        "month",
+    ]
 
 
 def parse_int(int_str: str) -> Optional[int]:
@@ -88,7 +94,9 @@ def parse_int(int_str: str) -> Optional[int]:
     return int(int_str)
 
 
-def parse_int_in_range(int_str: str, start_range: Optional[int], end_range: Optional[int]) -> Optional[int]:
+def parse_int_in_range(
+    int_str: str, start_range: Optional[int], end_range: Optional[int]
+) -> Optional[int]:
     """
     Parse int in specific range (range boundaries are included in range)
         start_range is None for no lower boundaries for int
@@ -192,7 +200,8 @@ def get_next_date(
 def parse_repeated_arguments(
     date: Optional[datetime.date], repeated_arguments: Tuple[int, str, int]
 ) -> Optional[List[datetime.date]]:
-    if (date is not None and not isinstance(date, datetime.date)) or not isinstance(repeated_arguments, tuple
+    if (date is not None and not isinstance(date, datetime.date)) or not isinstance(
+        repeated_arguments, tuple
     ):
         logging.warning("Got unexpected agruments")
         return None
@@ -253,7 +262,9 @@ def parse_repeated_arguments(
 
         while next_date is None and i != number_of_repetitions - 1 - number_of_trying:
             "In case of days in month less than days in date"
-            next_date = get_next_date(date_list[-1], each_argument, each_number + number_of_trying)
+            next_date = get_next_date(
+                date_list[-1], each_argument, each_number + number_of_trying
+            )
             number_of_trying += 1
 
         date_list.append(next_date)
@@ -342,8 +353,22 @@ def parse_start_end_of_day_time(time_str: str) -> Optional[Tuple[StartTime, EndT
 """
 
 
-def parse_user(user_id: int, user_name: str, start_time: datetime.time, end_time: datetime.time, history: str, context: str) -> Optional[BasicUserInfo]:
-    if not isinstance(user_id, int) or not isinstance(user_name, str) or not isinstance(start_time, datetime.time) or not isinstance(end_time, datetime.time) or not isinstance(history, str) or not isinstance(context, str):
+def parse_user(
+    user_id: int,
+    user_name: str,
+    start_time: datetime.time,
+    end_time: datetime.time,
+    history: str,
+    context: str,
+) -> Optional[BasicUserInfo]:
+    if (
+        not isinstance(user_id, int)
+        or not isinstance(user_name, str)
+        or not isinstance(start_time, datetime.time)
+        or not isinstance(end_time, datetime.time)
+        or not isinstance(history, str)
+        or not isinstance(context, str)
+    ):
         logging.warning("Got unexpected type")
         return None
 
@@ -353,12 +378,26 @@ def parse_user(user_id: int, user_name: str, start_time: datetime.time, end_time
         start_time=start_time,
         end_time=end_time,
         history=history,
-        context=context
+        context=context,
     )
 
 
-def parse_task(user_id: int, task_name: str, duration: int, importance: int, start_time: Optional[datetime.time], date: Optional[datetime.date]) -> Optional[Task]:
-    if not (isinstance(user_id, int) and isinstance(task_name, str) and isinstance(duration, int) and isinstance(importance, int) and (isinstance(start_time, datetime.time) or start_time is None) and (isinstance(date, datetime.date) or date is None)):
+def parse_task(
+    user_id: int,
+    task_name: str,
+    duration: int,
+    importance: int,
+    start_time: Optional[datetime.time],
+    date: Optional[datetime.date],
+) -> Optional[Task]:
+    if not (
+        isinstance(user_id, int)
+        and isinstance(task_name, str)
+        and isinstance(duration, int)
+        and isinstance(importance, int)
+        and (isinstance(start_time, datetime.time) or start_time is None)
+        and (isinstance(date, datetime.date) or date is None)
+    ):
         # logging.debug(user_id, task_name, duration, importance, start_time, date)
         logging.warning("Got unexpected type")
         return None
@@ -471,7 +510,6 @@ def parse_event(
     dates: Optional[datetime.date],
 ) -> Optional[List[Event]]:
     if (
-        
         not isinstance(event_name, str)
         or not isinstance(user_id, int)
         or not isinstance(start_time, datetime.time)
@@ -585,3 +623,49 @@ def parse_marking_history(
         return None
 
     return start_time, end_time, is_done
+
+
+def sorting_key(x: Union[Event, Task]) -> datetime.date:
+    return_var = None
+
+    if isinstance(x, Event):
+        return_var = x.start_time
+
+    if isinstance(x, Task):
+        return_var = x.predicted_start or x.start_time
+
+    if return_var is None:
+        return_var = datetime.time(hour=0, minute=0)
+
+    return return_var
+
+
+def sort_and_merge(event_arr: [Event], task_arr: [Task]) -> List[Union[Event, Task]]:
+    arr_sort = event_arr + task_arr
+    return sorted(arr_sort, key=sorting_key)
+
+
+def get_item_type_and_id(parse_str: str) -> Optional[Tuple[str, int]]:
+    if not isinstance(parse_str, str):
+        logging.warning("Got unexpected type")
+        return None
+
+    string_split = parse_str.strip().split('_')
+
+    if len(string_split) != 3:
+        logging.warning("Got unexpected argument")
+        return None
+
+    item_type = string_split[1]
+
+    if not (item_type == "event" or item_type == "task"):
+        logging.warning("Got unexpected value of item type")
+        return None
+
+    item_id = string_split[2]
+
+    if not item_id.isdigit():
+        logging.warning("Got unexpected value of item id")
+        return None
+
+    return item_type, item_id

@@ -100,7 +100,7 @@ class TasksRepository:
         return (
             self.session.query(domain.Task)
             .filter_by(telegram_id=user_id)
-            .filter(domain.Task.date == date | domain.Task.predicted_date == date)
+            .filter(and_(domain.Task.date == date, domain.Task.predicted_date == None) | (domain.Task.predicted_date == date))
             .all()
         )
 

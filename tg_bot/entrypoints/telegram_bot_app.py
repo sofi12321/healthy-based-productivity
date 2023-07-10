@@ -35,12 +35,17 @@ from tg_bot.utils.utils import (
     parse_int_in_range,
     check_repeat_each_argument,
     numpy_to_string,
+    sort_and_merge,
+    get_item_type_and_id,
 )
 from tg_bot.adapters.repositories import get_events_repo, get_tasks_repo, get_users_repo
 
 from tg_bot.keyboards.keyboards import (
     get_active_tasks_keyboard,
     get_start_buttons_keyboard,
+    get_tasks_events_keyboard,
+    add_back_button_keyboard,
+    add_cancel_button_keyboard,
 )
 from tg_bot.domain.domain import Task
 
@@ -95,7 +100,7 @@ async def process_start_command(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["first_hello"])
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == '+task')
+@dp.message_handler(lambda m: m.text.strip().lower() == "+task")
 @dp.message_handler(state="*", commands=["add_task"])
 async def add_task(message: Message, state: FSMContext):
     repo = get_users_repo()
@@ -110,7 +115,7 @@ async def add_task(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["add_task"])
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == '+event')
+@dp.message_handler(lambda m: m.text.strip().lower() == "+event")
 @dp.message_handler(state="*", commands=["add_event"])
 async def add_event(message: Message, state: FSMContext):
     message_text = message.text
@@ -127,7 +132,7 @@ async def add_event(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["add_event"])
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == 'mark history')
+@dp.message_handler(lambda m: m.text.strip().lower() == "mark history")
 @dp.message_handler(commands=["mark_history"])
 async def mark_history(message: Message, state: FSMContext):
     message_text = message.text
@@ -151,7 +156,7 @@ async def mark_history(message: Message, state: FSMContext):
     await state.set_state(MarkHistory.ChooseTask)
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == 'plan')
+@dp.message_handler(lambda m: m.text.strip().lower() == "plan")
 @dp.message_handler(commands=["plan"], state="*")
 async def plan_new_schedule(message: Message, state: FSMContext):
     """
@@ -241,6 +246,7 @@ async def plan_new_schedule(message: Message, state: FSMContext):
     await message.answer(PLANNER.print_schedule(tasks, events))
 
 
+@dp.message_handler(lambda m: m.text.strip().lower() == "list")
 @dp.message_handler(state="*", commands=["list"])
 async def show_tasks(message: Message, state: FSMContext):
     message_text = message.text
@@ -434,7 +440,7 @@ async def get_task_date(message: Message, state: FSMContext):
             return
 
         async with state.proxy() as data:
-            data['task_date'] = result
+            data["task_date"] = result
 
     repo = get_tasks_repo()
     async with state.proxy() as data:
@@ -613,7 +619,7 @@ async def event_want_repeat(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        lexicon['en']["write_success"], reply_markup=await get_start_buttons_keyboard()
+        lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard()
     )
     await state.finish()
 
@@ -832,7 +838,7 @@ async def marking_history_is_done(message: Message, state: FSMContext):
         return
 
     if result:
-        await message.answer(lexicon['en']['marking_history_start_time'])
+        await message.answer(lexicon["en"]["marking_history_start_time"])
         await state.set_state(MarkHistory.MarkingHistoryStartTime)
         return
 
@@ -877,10 +883,136 @@ async def choose_date_to_list(message: Message, state: FSMContext):
     tasks = repo_tasks.get_all_tasks_for_specific_date(result, message.from_id)
 
     # Get from utils sorted list
-    # sorted_list = []
+    sorted_list = sort_and_merge(events, tasks)
 
-    await message.answer(lexicon["en"]["list_task_event"])
+    await message.answer(
+        lexicon["en"]["list_task_event"],
+        reply_markup=await add_cancel_button_keyboard(
+            keyboard=await get_tasks_events_keyboard(sorted_list)
+        ),
+    )
     await state.set_state(List.ListingTasksEvents)
 
 
-# TODO: list
+@dp.callback_query_handler(lambda c: c.data == "listitemreturn", state=List.ListingTasksEvents)
+async def return_from_list_item(callback_query: CallbackQuery, state: FSMContext):
+    await bot.edit_message_text(
+        "successfully exited",
+        chat_id=callback_query.from_user.id,
+        message_id=callback_query.message.message_id,
+        reply_markup=None,
+    )
+    await state.finish()
+
+
+@dp.callback_query_handler(
+    lambda c: c.data.startswith("listitem_"), state=List.ListingTasksEvents
+)
+async def list_item_info(callback_query: CallbackQuery, state: FSMContext):
+    result = get_item_type_and_id(callback_query.data)
+
+    if result is None:
+        logging.error(get_lexicon_with_argument("error", callback_query.data))
+        await callback_query.message.answer(lexicon["en"]["retry_trouble"])
+        await bot.edit_message_reply_markup(
+            chat_id=callback_query.from_user.id,
+            message_id=callback_query.inline_message_id,
+            reply_markup=None,
+        )
+        return
+
+    item_type, item_id = result
+
+    item = None
+
+    if item_type == "event":
+        item = get_events_repo().get_event_by_id(
+            item_id, user_id=callback_query.from_user.id
+        )
+
+    if item_type == "task":
+        item = get_tasks_repo().get_task_by_id(
+            item_id, user_id=callback_query.from_user.id
+        )
+
+    if item is None:
+        logging.error(get_lexicon_with_argument("error", callback_query.data))
+        await callback_query.message.answer(lexicon["en"]["retry_trouble"])
+        await bot.edit_message_reply_markup(
+            chat_id=callback_query.from_user.id,
+            message_id=callback_query.inline_message_id,
+            reply_markup=None,
+        )
+        return
+
+    text = ""
+
+    if item_type == "event":
+        text = f"""
+            Event\n\t
+            Event name: {item.event_name}\n\t
+            Event start time: {item.start_time}\n\t
+            Event duration: {item.duration}\n\t
+            Event date: {item.date}\n\t
+            Was scheduled: {"yes" if item.was_scheduled else "no"}
+        """
+
+    if item_type == "task":
+        text = f"""
+            Task\n\t
+            Task name: {item.task_name}\n\t
+            Task start time: {item.predicted_start or item.start_time or "Not set"}\n\t
+            Task duration: {item.predicted_duration or item.duration}\n\t
+            Task time offset: {item.predicted_offset if item.predicted_offset is not None else "Not planned by model"}\n\t
+            Task date: {item.predicted_date or item.date}\n\t
+            Task importance: {item.importance}\n\t
+            Was done: {"yes" if item.is_done else "no"}\n\t
+            Was scheduled: {"yes" if item.predicted_start is not None else "no"}
+        """
+    await state.set_state(List.ShowingTask)
+    # await bot.edit_message_reply_markup(
+    # chat_id=callback_query.from_user.id,
+    # message_id=callback_query.message.message_id,
+    # reply_markup=None,
+    # )
+    await bot.edit_message_text(
+        text=text,
+        chat_id=callback_query.from_user.id,
+        message_id=callback_query.message.message_id,
+        reply_markup=await add_back_button_keyboard(),
+    )
+
+
+@dp.callback_query_handler(lambda c: c.data == "listitemback", state=List.ShowingTask)
+async def return_back_to_list(callback_query: CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        date = data.get("list_date")
+
+    if date is None:
+        logging.error(get_lexicon_with_argument("error", data.as_dict()))
+        await callback_query.message.answer(lexicon["en"]["retry_trouble"])
+        await bot.edit_message_reply_markup(
+            chat_id=callback_query.from_user.id,
+            message_id=callback_query.inline_message_id,
+            reply_markup=None,
+        )
+        return
+
+    repo_event = get_events_repo()
+    repo_tasks = get_tasks_repo()
+
+    events = repo_event.get_all_events_for_specific_date(date, callback_query.from_user.id)
+    tasks = repo_tasks.get_all_tasks_for_specific_date(date, callback_query.from_user.id)
+
+    # Get from utils sorted list
+    sorted_list = sort_and_merge(events, tasks)
+
+    await bot.edit_message_text(
+        lexicon["en"]["list_task_event"],
+        reply_markup=await add_cancel_button_keyboard(
+            keyboard=await get_tasks_events_keyboard(sorted_list)
+        ),
+        chat_id=callback_query.from_user.id,
+        message_id=callback_query.message.message_id
+    )
+    await state.set_state(List.ListingTasksEvents)
