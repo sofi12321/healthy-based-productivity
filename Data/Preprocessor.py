@@ -49,7 +49,7 @@ class Preprocessor:
 
         for j in range(len(label_num)):
             for i in range(num_labels):
-                data.insert(i, encoded_labels[i], 1 if i == label_num[j] else 0)
+                data.insert(j, encoded_labels[i], 1 if i == label_num[j] else 0)
         return data
 
     def _transform_cyclical_features(self, data, start_date, plan_date):
@@ -185,6 +185,13 @@ class Preprocessor:
         return self.preprocess_activity(input_vector, start_date, plan_time)
 
     def preprocess_activity(self, input_vector, start_date, plan_time):
+        if not isinstance(input_vector['Time_Min'][0], datetime.datetime):
+            max_time = plan_time + datetime.timedelta(minutes=1440)
+            input_vector['Time_Min'] = input_vector['Time_Min'] * (max_time - plan_time) + plan_time
+
+        # Transform cyclical features
+        input_vector = self._transform_cyclical_features(input_vector, start_date, plan_time)
+
         # convert Time_Min to alpha format
         max_time = plan_time + datetime.timedelta(minutes=1440)
         start_date = datetime.datetime(start_date.year, start_date.month, start_date.day,
@@ -193,9 +200,6 @@ class Preprocessor:
 
         # Encode label number
         input_vector = self._encode(input_vector, "Label Number")
-
-        # Transform cyclical features
-        input_vector = self._transform_cyclical_features(input_vector, start_date, plan_time)
 
         # Update scaler for Duration and then scale Duration
         self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
