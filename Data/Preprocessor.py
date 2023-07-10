@@ -66,7 +66,7 @@ class Preprocessor:
         num_days_start = calendar.monthrange(start_date.year, start_date.month)[1]
 
         # Get the number of days in the month of the provided date when the activity was planned by user
-        num_days_plan = calendar.monthrange(plan_date.year, plan_date.month)[1]
+        # num_days_plan = calendar.monthrange(plan_date.year, plan_date.month)[1]
 
         # Transform Time_Min feature
         transformed_data['Time_Min_sin'] = np.sin(2 * np.pi * data['Time_Min'] / 1440)
@@ -185,11 +185,12 @@ class Preprocessor:
         return self.preprocess_activity(input_vector, start_date, plan_time)
 
     def preprocess_activity(self, input_vector, start_date, plan_time):
-        if not isinstance(input_vector['Time_Min'][0], datetime.datetime):
+        if not isinstance(input_vector['Time_Min'][0], np.int64):
             max_time = plan_time + datetime.timedelta(minutes=1440)
-            input_vector['Time_Min'] = input_vector['Time_Min'] * (max_time - plan_time) + plan_time
+            temp_time = input_vector['Time_Min'] * (max_time - plan_time) + plan_time
+            input_vector['Time_Min'] = temp_time.dt.hour * 60 + temp_time.dt.minute
 
-        # Transform cyclical features
+        # Convert Time_Min to sin and cos# Transform cyclical features
         input_vector = self._transform_cyclical_features(input_vector, start_date, plan_time)
 
         # convert Time_Min to alpha format
