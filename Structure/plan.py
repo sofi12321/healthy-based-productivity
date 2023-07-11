@@ -116,7 +116,13 @@ class Planner:
                     task.predicted_duration + task.predicted_offset,
                 )
                 self.update_available_time_slots_task(task_output)
-
+    
+    def round_precision(self, num, precision=4):
+        precision = 10**4
+        if num - int(num * precision) / precision >= 0.5 / precision:
+            num += 1 / precision
+        return int(num * precision + 1) / precision
+    
     def update_available_time_slots_event(self, event):
         """
         Update available time slots based on the scheduled event
@@ -147,6 +153,7 @@ class Planner:
         :param duration: [0,1] duration alpha-related
         :param time_slots: list of available slots
         """
+        start_time, duration = self.round_precision(start_time), self.round_precision(duration)
         # print("dgjdkghkd", start_time, duration)
         for i in range(len(time_slots)):
             # Should change start of the slot
@@ -220,10 +227,18 @@ class Planner:
         tasks_2 = [task for task in tasks if task.importance == 2]
         tasks_3 = [task for task in tasks if task.importance == 3]
 
-        tasks_0.sort(key=lambda x: (x.date, x.start_time))
-        tasks_1.sort(key=lambda x: (x.date, x.start_time))
-        tasks_2.sort(key=lambda x: (x.date, x.start_time))
-        tasks_3.sort(key=lambda x: (x.date, x.start_time))
+        tasks_0.sort(key=lambda x: (x.date, x.start_time) if x.start_time else (
+            (datetime.datetime.now() + datetime.timedelta(hours=24)).date(),
+            (datetime.datetime.now() + datetime.timedelta(hours=24))))
+        tasks_1.sort(key=lambda x: (x.date, x.start_time) if x.start_time else (
+            (datetime.datetime.now() + datetime.timedelta(hours=24)).date(),
+            (datetime.datetime.now() + datetime.timedelta(hours=24))))
+        tasks_2.sort(key=lambda x: (x.date, x.start_time) if x.start_time else (
+            (datetime.datetime.now() + datetime.timedelta(hours=24)).date(),
+            (datetime.datetime.now() + datetime.timedelta(hours=24))))
+        tasks_3.sort(key=lambda x: (x.date, x.start_time) if x.start_time else (
+            (datetime.datetime.now() + datetime.timedelta(hours=24)).date(),
+            (datetime.datetime.now() + datetime.timedelta(hours=24))))
 
         return tasks_3 + tasks_2 + tasks_1 + tasks_0
 
@@ -314,12 +329,12 @@ class Planner:
         }
 
     def get_model_schedule(
-        self,
-        tasks,
-        events,
-        user_h,
-        user_c,
-        plan_time=datetime.datetime.now().replace(second=0, microsecond=0),
+            self,
+            tasks, events,
+            user_h, user_c,
+            user_start_time=datetime.time(hour=7, minute=0, second=0, microsecond=0),
+            user_end_time=datetime.time(hour=22, minute=0, second=0, microsecond=0),
+            plan_time=datetime.datetime.now().replace(second=0, microsecond=0)
     ):
         """
         Collects a scheduling data about each event to update database.
@@ -378,14 +393,8 @@ class Planner:
             self.update_available_time_slots_task(model_output)
 
         return resulted_schedule, user_h, user_c
-
-    def convert_history_to_output(
-        self,
-        real_date: datetime.date,
-        real_start_time: datetime.time,
-        real_duration: int,
-        planned_duration: int,
-    ):
+def convert_history_to_output(self, real_date: datetime.date, real_start_time: datetime.time, real_duration: int,
+                                  planned_duration: int):
         """
         Reformat user feedback about task completion to vector relative data (start time and offset).
         If duration == 0, then the task was not completed.
@@ -396,32 +405,33 @@ class Planner:
         :param planned_duration: time planned for solving the task
         :return: output vector
         """
+        output_vector = []
         if real_duration == 0:
             output_vector = self.converter.user_to_model(
-                task_date=datetime.datetime(
-                    year=real_date.year,
-                    month=real_date.month,
-                    day=real_date.day,
-                    hour=real_start_time.hour,
-                    minute=real_start_time.minute,
-                ),
+                task_date=datetime.datetime(year=real_date.year,
+                                            month=real_date.month,
+                                            day=real_date.day,
+                                            hour=real_start_time.hour,
+                                            minute=real_start_time.minute),
                 duration=0,
-                offset=0,
+                offset=0
             )
         else:
             output_vector = self.converter.user_to_model(
-                task_date=datetime.datetime(
-                    year=real_date.year,
-                    month=real_date.month,
-                    day=real_date.day,
-                    hour=real_start_time.hour,
-                    minute=real_start_time.minute,
-                ),
+                task_date=datetime.datetime(year=real_date.year,
+                                            month=real_date.month,
+                                            day=real_date.day,
+                                            hour=real_start_time.hour,
+                                            minute=real_start_time.minute),
                 duration=planned_duration,
-                offset=real_duration - planned_duration,
+                offset=real_duration - planned_duration
             )
-        return output_vector
-
+        
+        result = []
+        for num in output_vector:
+            result.append(self.round_precision(num))
+        return tuple(result)
+                                      
     def train_model(self, true_labels):
         """
         Continue the training of the model based on the user feedback.
