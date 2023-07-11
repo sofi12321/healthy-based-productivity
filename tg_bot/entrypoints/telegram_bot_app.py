@@ -100,7 +100,7 @@ async def process_start_command(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["first_hello"])
 
 
-@dp.message_handler(lambda m: m.text.strip() == "📌 Add Task", state='*')
+@dp.message_handler(lambda m: m.text.strip() == "📌 Add Task", state="*")
 @dp.message_handler(state="*", commands=["add_task"])
 async def add_task(message: Message, state: FSMContext):
     repo = get_users_repo()
@@ -115,7 +115,7 @@ async def add_task(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["add_task"])
 
 
-@dp.message_handler(lambda m: m.text.strip() == "📆 Add Event", state='*')
+@dp.message_handler(lambda m: m.text.strip() == "📆 Add Event", state="*")
 @dp.message_handler(state="*", commands=["add_event"])
 async def add_event(message: Message, state: FSMContext):
     message_text = message.text
@@ -132,7 +132,7 @@ async def add_event(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["add_event"])
 
 
-@dp.message_handler(lambda m: m.text.strip() == "✅ Mark History", state='*')
+@dp.message_handler(lambda m: m.text.strip() == "✅ Mark History", state="*")
 @dp.message_handler(commands=["mark_history"])
 async def mark_history(message: Message, state: FSMContext):
     message_text = message.text
@@ -156,7 +156,7 @@ async def mark_history(message: Message, state: FSMContext):
     await state.set_state(MarkHistory.ChooseTask)
 
 
-@dp.message_handler(lambda m: m.text.strip() == "📝 Plan", state='*')
+@dp.message_handler(lambda m: m.text.strip() == "📝 Plan", state="*")
 @dp.message_handler(commands=["plan"], state="*")
 async def plan_new_schedule(message: Message, state: FSMContext):
     """
@@ -198,7 +198,11 @@ async def plan_new_schedule(message: Message, state: FSMContext):
         message.from_id, ALPHA, current_time.date(), current_time.time()
     )
 
-    tasks = list(filter(lambda task: task.predicted_start is None, tasks))
+    tasks = list(
+        filter(
+            lambda task: task.predicted_start is None and task.is_done is False, tasks
+        )
+    )
     events = list(filter(lambda event: event.was_scheduled is False, events))
 
     """Sending to model"""
@@ -243,11 +247,27 @@ async def plan_new_schedule(message: Message, state: FSMContext):
         message.from_id, ALPHA, current_time.date(), current_time.time()
     )
 
+    tasks = list(
+        filter(
+            lambda task: task.is_done is False
+            and (
+                (
+                    task.predicted_date is not None
+                    and task.predicted_date == datetime.date.today()
+                )
+                or (task.date == datetime.date.today())
+            ),
+            tasks,
+        )
+    )
+
+    events = list(filter(lambda event: event.date == datetime.date.today(), events))
+
     await message.answer(PLANNER.print_schedule(tasks, events))
     await state.finish()
 
 
-@dp.message_handler(lambda m: m.text.strip() == "📜 List", state='*')
+@dp.message_handler(lambda m: m.text.strip() == "📜 List", state="*")
 @dp.message_handler(state="*", commands=["list"])
 async def show_tasks(message: Message, state: FSMContext):
     message_text = message.text
@@ -263,10 +283,10 @@ async def show_tasks(message: Message, state: FSMContext):
     await state.set_state(List.ChooseDate)
 
 
-@dp.message_handler(lambda m: m.text.strip() == "🪄 Formats", state='*')
+@dp.message_handler(lambda m: m.text.strip() == "🪄 Formats", state="*")
 @dp.message_handler(state="*", commands=["formats"])
 async def show_formats(message: Message, state: FSMContext):
-    await message.answer(lexicon['en']['formats'])
+    await message.answer(lexicon["en"]["formats"])
 
 
 @dp.message_handler(state=GetBasicInfo.NameOfUser)
@@ -284,7 +304,7 @@ async def get_user_name(message: Message, state: FSMContext):
         data["user_name"] = message_text
 
     await state.set_state(GetBasicInfo.StartOfDay)
-    await message.answer(lexicon['en']['basic_info'])
+    await message.answer(lexicon["en"]["basic_info"])
     await message.answer(lexicon["en"]["basic_info_start_of_day"])
 
 
@@ -354,7 +374,8 @@ async def get_end_day(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        lexicon["en"]["end_first_hello"], reply_markup=await get_start_buttons_keyboard()
+        lexicon["en"]["end_first_hello"],
+        reply_markup=await get_start_buttons_keyboard(),
     )
     await state.finish()
 
@@ -773,7 +794,7 @@ async def mark_history_to_task(callback_query: CallbackQuery, state: FSMContext)
                 Task start time: {task.start_time or "No time"}\t
                 Task date: {task.date or "No date"}\n""",
                 chat_id=callback_query.from_user.id,
-                message_id=callback_query.message.message_id
+                message_id=callback_query.message.message_id,
             )
             await callback_query.message.answer(
                 lexicon["en"]["marking_history_is_done"]
@@ -826,7 +847,9 @@ async def marking_history_duration(message: Message, state: FSMContext):
         repo.add_task(task)
 
     await state.finish()
-    await message.answer(lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard())
+    await message.answer(
+        lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard()
+    )
 
 
 @dp.message_handler(state=MarkHistory.MarkingHistoryIsDone)
@@ -904,7 +927,9 @@ async def choose_date_to_list(message: Message, state: FSMContext):
     await state.set_state(List.ListingTasksEvents)
 
 
-@dp.callback_query_handler(lambda c: c.data == "listitemreturn", state=List.ListingTasksEvents)
+@dp.callback_query_handler(
+    lambda c: c.data == "listitemreturn", state=List.ListingTasksEvents
+)
 async def return_from_list_item(callback_query: CallbackQuery, state: FSMContext):
     await bot.edit_message_text(
         "successfully exited",
@@ -1011,8 +1036,12 @@ async def return_back_to_list(callback_query: CallbackQuery, state: FSMContext):
     repo_event = get_events_repo()
     repo_tasks = get_tasks_repo()
 
-    events = repo_event.get_all_events_for_specific_date(date, callback_query.from_user.id)
-    tasks = repo_tasks.get_all_tasks_for_specific_date(date, callback_query.from_user.id)
+    events = repo_event.get_all_events_for_specific_date(
+        date, callback_query.from_user.id
+    )
+    tasks = repo_tasks.get_all_tasks_for_specific_date(
+        date, callback_query.from_user.id
+    )
 
     # Get from utils sorted list
     sorted_list = sort_and_merge(events, tasks)
@@ -1023,6 +1052,6 @@ async def return_back_to_list(callback_query: CallbackQuery, state: FSMContext):
             keyboard=await get_tasks_events_keyboard(sorted_list)
         ),
         chat_id=callback_query.from_user.id,
-        message_id=callback_query.message.message_id
+        message_id=callback_query.message.message_id,
     )
     await state.set_state(List.ListingTasksEvents)
