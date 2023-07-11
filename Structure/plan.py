@@ -324,12 +324,12 @@ class Planner:
         }
 
     def get_model_schedule(
-        self,
-        tasks,
-        events,
-        user_h,
-        user_c,
-        plan_time=datetime.datetime.now().replace(second=0, microsecond=0),
+            self,
+            tasks, events,
+            user_h, user_c,
+            user_start_time=datetime.time(hour=7, minute=0, second=0, microsecond=0),
+            user_end_time=datetime.time(hour=22, minute=0, second=0, microsecond=0),
+            plan_time=datetime.datetime.now().replace(second=0, microsecond=0)
     ):
         """
         Collects a scheduling data about each event to update database.

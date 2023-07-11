@@ -209,7 +209,7 @@ async def plan_new_schedule(message: Message, state: FSMContext):
     """Sending to model"""
 
     new_schedule, user_h, user_c = PLANNER.get_model_schedule(
-        tasks, events, user_history, user_context, user.start_time, user.end_time
+        tasks, events, user_history, user_context, user_start_time=user.start_time, user_end_time=user.end_time, plan_time=current_time
     )
 
     """Gathering and saving generated information"""
