@@ -474,7 +474,7 @@ async def get_task_start_time(message: Message, state: FSMContext):
 async def get_task_date(message: Message, state: FSMContext):
     message_text = message.text
 
-    if message_text != "no":
+    if message_text.strip().lower() != "no":
         result = parse_date(message_text)
 
         if result is None:
@@ -546,7 +546,7 @@ async def get_event_date(message: Message, state: FSMContext):
     message_text = message.text
     message_text = message_text.strip()
 
-    if message_text.lower() != "no":
+    if message_text.strip().lower() != "no":
         result = parse_date(message_text)
 
         if result is None:
