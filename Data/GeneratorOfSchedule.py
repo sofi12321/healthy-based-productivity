@@ -20,7 +20,7 @@ class GeneratorOfSchedule:
             from which the schedule will be generated
         :return: start time
         """
-        start_time = datetime.strptime("06:00", "%H:%M") + timedelta(minutes=random.randrange(0, 225, 15))
+        start_time = datetime.strptime("06:00", "%H:%M") + timedelta(minutes=random.randrange(0, 225, 5))
         return timedelta(hours=start_time.hour, minutes=start_time.minute)
 
     def _generate_next_start_time(self, curr_day):
@@ -54,11 +54,11 @@ class GeneratorOfSchedule:
         :return: duration
         """
         if label_num == 3:
-            return random.randrange(30, 180, 10)
+            return random.randrange(60, 190, 10)
         elif label_num == 0:
             return random.randrange(5, 40, 5)
         else:
-            return random.randrange(20, 120, 10)
+            return random.randrange(20, 105, 5)
 
     def _generate_importance(self, label_num):
         """
@@ -76,7 +76,8 @@ class GeneratorOfSchedule:
         """
         Generate a schedule for the given number of days
         """
-        curr_time = datetime.now() + timedelta(days=1) + self._generate_start_time()
+        curr_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + \
+                    timedelta(days=1) + self._generate_start_time()
         next_start_time = self._generate_next_start_time(curr_time)
         day_end_time = next_start_time - timedelta(hours=random.randint(7, 9))
 
@@ -136,5 +137,5 @@ class GeneratorOfSchedule:
 
 # TODO: Uncomment only for debugging
 if __name__ == "__main__":
-    generator = GeneratorOfSchedule(100)
+    generator = GeneratorOfSchedule(10000)
     generator.generate_schedule()

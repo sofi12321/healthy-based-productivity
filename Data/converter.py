@@ -43,10 +43,8 @@ class Converter:
 
         return task_date_model, duration_model, offset_model
 
-    def out_to_features(self, old_features, out):
-        print(out)
+    def out_to_features(self, old_features, out, plan_date):
         old_features = old_features[0].numpy()
-        print(old_features)
         out_converted = self.model_to_user(out[0], out[1], out[2])
 
         df = pd.DataFrame(
@@ -57,10 +55,10 @@ class Converter:
                      'Date_Categorical',
                      'Date_Day',
                      'Date_Month',
-                     'Plan_Time_Min',
-                     'Plan_Date_Categorical',
-                     'Plan_Date_Day',
-                     'Plan_Date_Month'
+                     # 'Plan_Time_Min',
+                     # 'Plan_Date_Categorical',
+                     # 'Plan_Date_Day',
+                     # 'Plan_Date_Month'
                      ]
         )
         label_number = 0
@@ -74,18 +72,19 @@ class Converter:
                 importance = i - 5
                 break
         start_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[9] * 365 - 1)
-        plan_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[17] * 365 - 1)
+        # plan_date = datetime(year=datetime.now().year, month=1, day=1) + timedelta(days=old_features[17] * 365 - 1)
         df.loc[len(df)] = {'Label Number': label_number,
                            'Duration': out_converted[1],
                            'Importance': importance,
-                           'Time_Min': out_converted[0].minute + out_converted[0].hour * 60,
+                           'Time_Min': out_converted[0],
                            'Date_Categorical': old_features[9] * 365,
                            'Date_Day': start_date.day,
                            'Date_Month': start_date.month,
-                           'Plan_Time_Min': old_features[14] * 1440,
-                           'Plan_Date_Categorical': old_features[17] * 365,
-                           'Plan_Date_Day': plan_date.day,
-                           'Plan_Date_Month': plan_date.month}
+                           # 'Plan_Time_Min': old_features[14] * 1440,
+                           # 'Plan_Date_Categorical': old_features[17] * 365,
+                           # 'Plan_Date_Day': plan_date.day,
+                           # 'Plan_Date_Month': plan_date.month
+                           }
 
         preprocessor = Preprocessor()
         new_features = preprocessor.preprocess_activity(df, start_date, plan_date)
