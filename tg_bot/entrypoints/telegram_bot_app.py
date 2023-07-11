@@ -100,7 +100,7 @@ async def process_start_command(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["first_hello"])
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == "+task")
+@dp.message_handler(lambda m: m.text.strip() == "📌 Add Task", state='*')
 @dp.message_handler(state="*", commands=["add_task"])
 async def add_task(message: Message, state: FSMContext):
     repo = get_users_repo()
@@ -115,7 +115,7 @@ async def add_task(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["add_task"])
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == "+event")
+@dp.message_handler(lambda m: m.text.strip() == "📆 Add Event", state='*')
 @dp.message_handler(state="*", commands=["add_event"])
 async def add_event(message: Message, state: FSMContext):
     message_text = message.text
@@ -132,7 +132,7 @@ async def add_event(message: Message, state: FSMContext):
     await message.answer(lexicon["en"]["add_event"])
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == "mark history")
+@dp.message_handler(lambda m: m.text.strip() == "✅ Mark History", state='*')
 @dp.message_handler(commands=["mark_history"])
 async def mark_history(message: Message, state: FSMContext):
     message_text = message.text
@@ -156,7 +156,7 @@ async def mark_history(message: Message, state: FSMContext):
     await state.set_state(MarkHistory.ChooseTask)
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == "plan")
+@dp.message_handler(lambda m: m.text.strip() == "📝 Plan", state='*')
 @dp.message_handler(commands=["plan"], state="*")
 async def plan_new_schedule(message: Message, state: FSMContext):
     """
@@ -244,9 +244,10 @@ async def plan_new_schedule(message: Message, state: FSMContext):
     )
 
     await message.answer(PLANNER.print_schedule(tasks, events))
+    await state.finish()
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == "list")
+@dp.message_handler(lambda m: m.text.strip() == "📜 List", state='*')
 @dp.message_handler(state="*", commands=["list"])
 async def show_tasks(message: Message, state: FSMContext):
     message_text = message.text
@@ -262,7 +263,7 @@ async def show_tasks(message: Message, state: FSMContext):
     await state.set_state(List.ChooseDate)
 
 
-@dp.message_handler(lambda m: m.text.strip().lower() == "formats")
+@dp.message_handler(lambda m: m.text.strip() == "🪄 Formats", state='*')
 @dp.message_handler(state="*", commands=["formats"])
 async def show_formats(message: Message, state: FSMContext):
     await message.answer(lexicon['en']['formats'])
@@ -283,7 +284,7 @@ async def get_user_name(message: Message, state: FSMContext):
         data["user_name"] = message_text
 
     await state.set_state(GetBasicInfo.StartOfDay)
-    await message.answer(lexicon['en']['formats'])
+    await message.answer(lexicon['en']['basic_info'])
     await message.answer(lexicon["en"]["basic_info_start_of_day"])
 
 
@@ -361,7 +362,7 @@ async def get_end_day(message: Message, state: FSMContext):
 @dp.message_handler(state=GetTaskInfo.TaskNameState)
 async def get_task_name(message: Message, state: FSMContext):
     """
-    Used to parse beggining with gaining task name
+    Used to parse task, beggining with task name
     """
     message_text = message.text
     message_text = message_text.strip()
@@ -373,8 +374,8 @@ async def get_task_name(message: Message, state: FSMContext):
     async with state.proxy() as data:
         data["task_name"] = message_text
 
-    await state.set_state(GetTaskInfo.TaskDurationState)
-    await message.answer(lexicon["en"]["get_duration_task"])
+    await state.set_state(GetTaskInfo.TaskStartTimeState)
+    await message.answer(lexicon["en"]["get_start_time_task"])
 
 
 @dp.message_handler(state=GetTaskInfo.TaskDurationState)
@@ -390,12 +391,12 @@ async def get_task_duration(message: Message, state: FSMContext):
     async with state.proxy() as data:
         data["task_duration"] = result
 
-    await state.set_state(GetTaskInfo.TaskImportanceState)
-    await message.answer(lexicon["en"]["get_importance_task"])
+    await state.set_state(GetTaskInfo.TaskDateState)
+    await message.answer(lexicon["en"]["get_date_task"])
 
 
 @dp.message_handler(state=GetTaskInfo.TaskImportanceState)
-async def get_task_duration(message: Message, state: FSMContext):
+async def get_task_importance(message: Message, state: FSMContext):
     message_text = message.text
     result = parse_int_in_range(message_text, start_range=0, end_range=3)
 
@@ -406,48 +407,6 @@ async def get_task_duration(message: Message, state: FSMContext):
 
     async with state.proxy() as data:
         data["task_importance"] = result
-
-    await state.set_state(GetTaskInfo.TaskStartTimeState)
-    await message.answer(lexicon["en"]["get_start_time_task"])
-
-
-@dp.message_handler(state=GetTaskInfo.TaskStartTimeState)
-async def get_task_start_time(message: Message, state: FSMContext):
-    message_text = message.text
-
-    if message_text == "no":
-        await state.set_state(GetTaskInfo.TaskDateState)
-        await message.answer(lexicon["en"]["get_date_task"])
-        return
-
-    result = parse_time(message_text)
-
-    if result is None:
-        """Please retry"""
-        await message.answer(lexicon["en"]["retry_optional_time"])
-        return
-
-    async with state.proxy() as data:
-        data["task_start_time"] = result
-
-    await state.set_state(GetTaskInfo.TaskDateState)
-    await message.answer(lexicon["en"]["get_date_task"])
-
-
-@dp.message_handler(state=GetTaskInfo.TaskDateState)
-async def get_task_date(message: Message, state: FSMContext):
-    message_text = message.text
-
-    if message_text != "no":
-        result = parse_date(message_text)
-
-        if result is None:
-            """Please retry"""
-            await message.answer(lexicon["en"]["retry_optional_date"])
-            return
-
-        async with state.proxy() as data:
-            data["task_date"] = result
 
     repo = get_tasks_repo()
     async with state.proxy() as data:
@@ -486,6 +445,48 @@ async def get_task_date(message: Message, state: FSMContext):
     await message.answer(
         lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard()
     )
+
+
+@dp.message_handler(state=GetTaskInfo.TaskStartTimeState)
+async def get_task_start_time(message: Message, state: FSMContext):
+    message_text = message.text
+
+    if message_text.strip().lower() == "no":
+        await state.set_state(GetTaskInfo.TaskDateState)
+        await message.answer(lexicon["en"]["get_date_task"])
+        return
+
+    result = parse_time(message_text)
+
+    if result is None:
+        """Please retry"""
+        await message.answer(lexicon["en"]["retry_optional_time"])
+        return
+
+    async with state.proxy() as data:
+        data["task_start_time"] = result
+
+    await state.set_state(GetTaskInfo.TaskDurationState)
+    await message.answer(lexicon["en"]["get_duration_task"])
+
+
+@dp.message_handler(state=GetTaskInfo.TaskDateState)
+async def get_task_date(message: Message, state: FSMContext):
+    message_text = message.text
+
+    if message_text != "no":
+        result = parse_date(message_text)
+
+        if result is None:
+            """Please retry"""
+            await message.answer(lexicon["en"]["retry_optional_date"])
+            return
+
+        async with state.proxy() as data:
+            data["task_date"] = result
+
+    await message.answer(lexicon["en"]["get_importance_task"])
+    await state.set_state(GetTaskInfo.TaskImportanceState)
 
 
 @dp.message_handler(state=GetEventInfo.EventNameState)
@@ -825,7 +826,7 @@ async def marking_history_duration(message: Message, state: FSMContext):
         repo.add_task(task)
 
     await state.finish()
-    await message.answer(lexicon["en"]["write_success"])
+    await message.answer(lexicon["en"]["write_success"], reply_markup=await get_start_buttons_keyboard())
 
 
 @dp.message_handler(state=MarkHistory.MarkingHistoryIsDone)
@@ -970,10 +971,10 @@ async def list_item_info(callback_query: CallbackQuery, state: FSMContext):
         text = f"""
             Task\n\t
             Task name: {item.task_name}\n\t
-            Task start time: {item.predicted_start or item.start_time or "Not set"}\n\t
-            Task duration: {item.predicted_duration or item.duration}\n\t
+            Task start time: {item.real_start or item.predicted_start or item.start_time or "Not set"}\n\t
+            Task duration: {item.real_duration or item.predicted_duration or item.duration}\n\t
             Task time offset: {item.predicted_offset if item.predicted_offset is not None else "Not planned by model"}\n\t
-            Task date: {item.predicted_date or item.date}\n\t
+            Task date: {item.real_date or item.predicted_date or item.date}\n\t
             Task importance: {item.importance}\n\t
             Was done: {"yes" if item.is_done else "no"}\n\t
             Was scheduled: {"yes" if item.predicted_start is not None else "no"}

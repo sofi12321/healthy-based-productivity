@@ -2,7 +2,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
-    KeyboardButton,
+    KeyboardButton
 )
 from tg_bot.domain.domain import Task, Event
 from typing import Optional, Union, List
@@ -28,15 +28,19 @@ async def get_active_tasks_keyboard(active_tasks: [Task]) -> InlineKeyboardMarku
 
 
 async def get_start_buttons_keyboard() -> ReplyKeyboardMarkup:
-    keyboard_buttons_text = ["+task", "+event", "mark history", "plan", "list", "formats"]
+    keyboard_buttons_text = ["📌 Add Task", "📆 Add Event", "✅ Mark History", "📝 Plan", "📜 List", "🪄 Formats"]
+
     buttons = list(map(KeyboardButton, keyboard_buttons_text))
 
-    print(buttons)
     keyboard: ReplyKeyboardMarkup = ReplyKeyboardMarkup(
         resize_keyboard=True, one_time_keyboard=True
     )
 
-    keyboard = keyboard.row(*buttons)
+    keyboard = keyboard.row(buttons[0], buttons[3])
+    keyboard = keyboard.row(buttons[1], buttons[4])
+    keyboard = keyboard.row(buttons[2], buttons[5])
+
+    print(keyboard)
 
     return keyboard
 
