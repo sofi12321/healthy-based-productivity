@@ -37,4 +37,4 @@ class MarkHistory(StatesGroup):
 class List(StatesGroup):
     ChooseDate = State()
     ListingTasksEvents = State()
-    ShowingTask = State()
+    ShowingTaskEvent = State()

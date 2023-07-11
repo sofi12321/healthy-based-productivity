@@ -46,6 +46,7 @@ from tg_bot.keyboards.keyboards import (
     get_tasks_events_keyboard,
     add_back_button_keyboard,
     add_cancel_button_keyboard,
+    add_delete_list_button
 )
 from tg_bot.domain.domain import Task
 
@@ -208,7 +209,7 @@ async def plan_new_schedule(message: Message, state: FSMContext):
     """Sending to model"""
 
     new_schedule, user_h, user_c = PLANNER.get_model_schedule(
-        tasks, events, user_history, user_context
+        tasks, events, user_history, user_context, user.start_time, user.end_time
     )
 
     """Gathering and saving generated information"""
@@ -951,13 +952,12 @@ async def list_item_info(callback_query: CallbackQuery, state: FSMContext):
         await callback_query.message.answer(lexicon["en"]["retry_trouble"])
         await bot.edit_message_reply_markup(
             chat_id=callback_query.from_user.id,
-            message_id=callback_query.inline_message_id,
+            message_id=callback_query.message.message_id,
             reply_markup=None,
         )
         return
 
     item_type, item_id = result
-
     item = None
 
     if item_type == "event":
@@ -975,7 +975,7 @@ async def list_item_info(callback_query: CallbackQuery, state: FSMContext):
         await callback_query.message.answer(lexicon["en"]["retry_trouble"])
         await bot.edit_message_reply_markup(
             chat_id=callback_query.from_user.id,
-            message_id=callback_query.inline_message_id,
+            message_id=callback_query.message.message_id,
             reply_markup=None,
         )
         return
@@ -1004,7 +1004,7 @@ async def list_item_info(callback_query: CallbackQuery, state: FSMContext):
             Was done: {"yes" if item.is_done else "no"}\n\t
             Was scheduled: {"yes" if item.predicted_start is not None else "no"}
         """
-    await state.set_state(List.ShowingTask)
+    await state.set_state(List.ShowingTaskEvent)
     # await bot.edit_message_reply_markup(
     # chat_id=callback_query.from_user.id,
     # message_id=callback_query.message.message_id,
@@ -1014,11 +1014,11 @@ async def list_item_info(callback_query: CallbackQuery, state: FSMContext):
         text=text,
         chat_id=callback_query.from_user.id,
         message_id=callback_query.message.message_id,
-        reply_markup=await add_back_button_keyboard(),
+        reply_markup=await add_back_button_keyboard(await add_delete_list_button(item)),
     )
 
 
-@dp.callback_query_handler(lambda c: c.data == "listitemback", state=List.ShowingTask)
+@dp.callback_query_handler(lambda c: c.data == "listitemback", state=List.ShowingTaskEvent)
 async def return_back_to_list(callback_query: CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
         date = data.get("list_date")
@@ -1028,7 +1028,7 @@ async def return_back_to_list(callback_query: CallbackQuery, state: FSMContext):
         await callback_query.message.answer(lexicon["en"]["retry_trouble"])
         await bot.edit_message_reply_markup(
             chat_id=callback_query.from_user.id,
-            message_id=callback_query.inline_message_id,
+            message_id=callback_query.message.message_id,
             reply_markup=None,
         )
         return
@@ -1055,3 +1055,56 @@ async def return_back_to_list(callback_query: CallbackQuery, state: FSMContext):
         message_id=callback_query.message.message_id,
     )
     await state.set_state(List.ListingTasksEvents)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("listitemdelete_"), state=List.ShowingTaskEvent)
+async def delete_item_list(callback_query: CallbackQuery, state: FSMContext):
+    result = get_item_type_and_id(callback_query.data)
+
+    if result is None:
+        logging.error(get_lexicon_with_argument("error", callback_query.data))
+        await callback_query.message.answer(lexicon["en"]["retry_trouble"])
+        await bot.edit_message_reply_markup(
+            chat_id=callback_query.from_user.id,
+            message_id=callback_query.message.message_id,
+            reply_markup=None,
+        )
+        return
+
+    item_type, item_id = result
+
+    try:
+        if item_type == "event":
+            repo = get_events_repo()
+
+            event = repo.get_event_by_id(item_id, callback_query.from_user.id)
+
+            if event is None:
+                raise ValueError("Cannot find event in db from specified user")
+
+            repo.delete_event(event)
+        else:
+            repo = get_tasks_repo()
+
+            task = repo.get_task_by_id(item_id, callback_query.from_user.id)
+
+            if task is None:
+                raise ValueError("Cannot find task in db from specified user")
+
+            repo.delete_task(task)
+
+    except Exception as e:
+        logging.error(get_lexicon_with_argument('error', e.args))
+        await bot.send_message(
+            chat_id=callback_query.from_user.id,
+            text=lexicon["en"]["retry_trouble"],
+            reply_markup=await get_start_buttons_keyboard()
+        )
+        await state.finish()
+
+    await state.finish()
+    await bot.edit_message_text(
+        chat_id=callback_query.from_user.id,
+        text=lexicon["en"]["delete_success"],
+        message_id=callback_query.message.message_id
+    )

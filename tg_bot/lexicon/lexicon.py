@@ -55,6 +55,7 @@ lexicon = {
 
         "hello": "Hello, how can I help you?",
         "write_success": "Successfully saved!",
+        "delete_success": "Successfully deleted!",
 
         "add_task": """I'm happy that you want to add a task 😊 What is the name of the task?""",
         "get_date_task": "📅 What data do you want to schedule it?",

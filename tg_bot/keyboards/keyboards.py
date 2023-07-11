@@ -40,8 +40,6 @@ async def get_start_buttons_keyboard() -> ReplyKeyboardMarkup:
     keyboard = keyboard.row(buttons[1], buttons[4])
     keyboard = keyboard.row(buttons[2], buttons[5])
 
-    print(keyboard)
-
     return keyboard
 
 
@@ -86,3 +84,24 @@ async def get_tasks_events_keyboard(
             )
 
     return keyboard
+
+
+async def add_delete_list_button(
+    task_event: Union[Task, Event],
+    keyboard: Optional[InlineKeyboardMarkup] = None,
+) -> InlineKeyboardMarkup:
+    if not isinstance(task_event, Task) and not isinstance(task_event, Event):
+        return None
+
+    if keyboard is None:
+        keyboard = InlineKeyboardMarkup()
+
+    if isinstance(task_event, Event):
+        type_str = "event"
+        item_id = task_event.event_id
+
+    else:
+        type_str = "task"
+        item_id = task_event.task_id
+
+    return keyboard.add(InlineKeyboardButton("Delete", callback_data=f"listitemdelete_{type_str}_{item_id}"))

@@ -34,9 +34,7 @@ class EventsRepository:
         self.session.commit()
 
     def get_event_by_id(self, event_id: int, user_id: int) -> Optional[domain.Event]:
-        return self.session.get(
-            domain.Event, {"event_id": event_id, "telegram_id": user_id}
-        )
+        return self.session.query(domain.Event).filter_by(telegram_id=user_id, event_id=event_id).one_or_none()
 
     def get_events_in_range(self, user_id: int, delta_hours: int, from_date: datetime.date, from_time: datetime.time) -> [domain.Event]:
         delta_days = delta_hours // 24
@@ -49,16 +47,11 @@ class EventsRepository:
             domain.Event.date.between(from_datetime.date(), to_datetime.date())
         ).all()
 
-        print(events)
-
         return_arr = []
 
         for event in events:
             event_datetime = datetime.datetime.combine(event.date, event.start_time)
             event_duration = datetime.timedelta(minutes=event.duration)
-
-            print(event_datetime + event_duration)
-            print(from_datetime, to_datetime)
 
             if from_datetime <= event_datetime + event_duration <= to_datetime:
                 return_arr.append(event)
