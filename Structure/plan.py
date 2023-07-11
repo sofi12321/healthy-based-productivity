@@ -21,7 +21,7 @@ from tg_bot.domain.domain import Task, Event
 class Planner:
     def __init__(self, alpha=1440):
         # TODO: All the parameters should be in configured after training
-        self.scheduler = SC_LSTM(in_features=22,
+        self.scheduler = SC_LSTM(in_features=14,
                                  lstm_layers=1,
                                  hidden=124,
                                  hidden_injector=64,
@@ -192,7 +192,7 @@ class Planner:
             - vector of output features describing given event,
             - time when the event was planned by user
         """
-        input_vector = self.preprocessor.preprocess_event(event, label)
+        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
         activity_type = "non-resched"
 
         return input_vector, activity_type
@@ -234,6 +234,7 @@ class Planner:
 
         return input_vector, activity_type
 
+
     def call_model(self, input_features, task_type, available_time_slots, user_h, user_c):
         """
         Perform scheduling for an event or event.
@@ -249,8 +250,9 @@ class Planner:
         input_features = np.array(input_features).astype(np.float64)
         input_features = torch.tensor(input_features, dtype=torch.float32)
         input_features = input_features.unsqueeze(0)
+        print("Start time", input_features[0][6])
 
-        print(available_time_slots)
+        print(f'Available time: {available_time_slots}')
 
         # Set the model states to user states
         self.scheduler.set_states(user_h, user_c)
@@ -267,8 +269,14 @@ class Planner:
         # TODO: DELETE THIS
         print(f"Output prediction: {prediction}")
         
-        # [[1,2,3]]
-        return prediction[0], new_h, new_c
+
+        if prediction == None:
+            return None, new_h, new_c
+
+        # Prediction format is [[1,2,3]]
+        else:
+            return prediction[0], new_h, new_c
+
 
     def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
         """
@@ -385,8 +393,9 @@ class Planner:
         Continue the training of the model based on the user feedback.
         :param true_labels: real parameters
         """
-        # TODO: Leon
-        pass
+        # TODO: ADD X AND Y_REAL
+        self.scheduler.feedback(true_labels)
+
 
     def mark_task_history(self, task: Task):
         """
@@ -469,13 +478,20 @@ class Planner:
 if __name__ == '__main__':
     planner = Planner()
     tasks = [
-        Task(telegram_id=0, task_name="sport", importance=2,
-             start_time=datetime.time(13, 20), duration=20, date=datetime.datetime.now().date(),
-             # predicted_start=datetime.time(13, 20), predicted_duration=20, predicted_offset=5,
-             predicted_date=datetime.datetime.now().date()),
         Task(telegram_id=1, task_name="music", importance=1,
-             duration=40, start_time=datetime.time(17, 20), date=datetime.datetime.now().date(),
-             # predicted_start=datetime.time(17, 20), predicted_duration=40, predicted_offset=10,
+             duration=30, start_time=datetime.time(10, 20), date=datetime.datetime.now().date(),
+             predicted_date=datetime.datetime.now().date()),
+
+        Task(telegram_id=1, task_name="sport", importance=1,
+             start_time=datetime.time(13, 30), duration=20, date=datetime.datetime.now().date(),
+             predicted_date=datetime.datetime.now().date()),
+
+        Task(telegram_id=1, task_name="music", importance=1,
+             duration=60, start_time=datetime.time(15, 00), date=datetime.datetime.now().date(),
+             predicted_date=datetime.datetime.now().date()),
+
+        Task(telegram_id=1, task_name="music", importance=1,
+             duration=40, start_time=datetime.time(20, 0), date=datetime.datetime.now().date(),
              predicted_date=datetime.datetime.now().date())
     ]
     events = [

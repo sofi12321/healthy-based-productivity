@@ -52,6 +52,10 @@ class SC_LSTM(nn.Module):
             nn.ReLU()
         )
 
+        # For online learning
+        self.loss_func = nn.MSELoss()
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
+
     def forward(self, x, task_type='', free_time_slots='', save_states=False):
         """
         Forward pass of the model.
@@ -123,11 +127,11 @@ class SC_LSTM(nn.Module):
         out, (hn_new, cn_new) = self.lstm(x, (self.hn, self.cn))
         out = self.lstm_linear(out)
         out = self.lstm_lin_activation(out)
+        # print(f'Intermediary output: {out}')
 
         # Create a coppy of free time slots
         free_time_slots = np.copy(free_time_slots)
         if self.__check_overlay(out, free_time_slots):
-            # TODO: SHOULD THE MODEL USE AN OUTPUT DURATION AND REFR, OR USE USER DEFINED ONES?
             # Unpack torch tensors times into 3 variables and convert them to numpy
             start, duration, refr = out[0][0].item(), out[0][1].item(), out[0][2].item()
 
@@ -162,11 +166,20 @@ class SC_LSTM(nn.Module):
 
 
             out = (best_time_slot[0], duration, refr)
+            out = torch.tensor(out).unsqueeze(0).float()
 
+            # Save states without injector
+            # TODO: delete this
             if save_states:
-                # Convert output (,3) and x (,11) to the input model format (,11)
-                new_x = self.converter.out_to_features(x, out)
-                self.__use_injector(new_x)
+                self.hn = hn_new.detach()
+                self.cn = cn_new.detach()
+
+            # Save states using injector
+            # TODO: uncomment this
+            # if save_states:
+            #     # Convert output (,3) and x (,11) to the input model format (,11)
+            #     new_x = self.converter.out_to_features(x, out)
+            #     self.__use_injector(new_x)
             return out
 
         # Save the states and return not modified output if it is feasible
@@ -227,7 +240,7 @@ class SC_LSTM(nn.Module):
         super(SC_LSTM, self).eval()
 
 
-    def train_model(self, mode=True):
+    def train_model(self, mode):
         """
         This function overload train() function of nn.Module
         :param mode: "lstm" - train only lstm and lstm_linear
@@ -337,3 +350,26 @@ class SC_LSTM(nn.Module):
         # Set states
         self.hn = hn
         self.cn = cn
+
+
+    def feedback(self, X, Y_real):
+        """
+        This function calculates the loss and updates the model.
+        :param Y_real: real values of the output
+        :return: None
+        """
+
+        self.train_model(mode='lstm')
+
+        # Forward pass
+        Y_pred = self.forward(X, task_type='resched', free_time_slots=[[1, 0]], save_states=False)
+
+        # Calculate the loss
+        loss = self.loss_func(Y_pred.view(-1, ), Y_real.view(-1, ))
+
+        # Update the model
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+        self.eval_model()
