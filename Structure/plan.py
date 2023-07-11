@@ -114,6 +114,13 @@ class Planner:
                                                              task.predicted_duration + task.predicted_offset)
                 self.update_available_time_slots_task(task_output)
 
+    def round_precision(self, num, precision=4):
+        precision = 10**4
+        if num - int(num * precision) / precision >= 0.5 / precision:
+            num += 1 / precision
+        return int(num * precision + 1) / precision
+    
+
     def update_available_time_slots_event(self, event):
         """
         Update available time slots based on the scheduled event
@@ -121,7 +128,7 @@ class Planner:
         """
         event_start, event_dur, _ = self.convert_history_to_output(event.date, event.start_time,
                                                                    event.duration, event.duration)
-        self.available_time_slots = self.update_slot(event_start, event_dur, self.available_time_slots)
+        self.available_time_slots = self.update_slot(self.round_precision(event_start), self.round_precision(event_dur), self.available_time_slots)
 
     def update_available_time_slots_task(self, prediction):
         """
@@ -139,7 +146,7 @@ class Planner:
         :param duration: [0,1] duration alpha-related
         :param time_slots: list of available slots
         """
-        # print("dgjdkghkd", start_time, duration)
+        start_time, duration = self.round_precision(start_time), self.round_precision(duration)
         for i in range(len(time_slots)):
             # Should change start of the slot
             if start_time < 0:
@@ -208,10 +215,18 @@ class Planner:
         tasks_2 = [task for task in tasks if task.importance == 2]
         tasks_3 = [task for task in tasks if task.importance == 3]
 
-        tasks_0.sort(key=lambda x: (x.date, x.start_time))
-        tasks_1.sort(key=lambda x: (x.date, x.start_time))
-        tasks_2.sort(key=lambda x: (x.date, x.start_time))
-        tasks_3.sort(key=lambda x: (x.date, x.start_time))
+        tasks_0.sort(key=lambda x: (x.date, x.start_time) if x.start_time else (
+            (datetime.datetime.now() + datetime.timedelta(hours=24)).date(),
+            (datetime.datetime.now() + datetime.timedelta(hours=24))))
+        tasks_1.sort(key=lambda x: (x.date, x.start_time) if x.start_time else (
+            (datetime.datetime.now() + datetime.timedelta(hours=24)).date(),
+            (datetime.datetime.now() + datetime.timedelta(hours=24))))
+        tasks_2.sort(key=lambda x: (x.date, x.start_time) if x.start_time else (
+            (datetime.datetime.now() + datetime.timedelta(hours=24)).date(),
+            (datetime.datetime.now() + datetime.timedelta(hours=24))))
+        tasks_3.sort(key=lambda x: (x.date, x.start_time) if x.start_time else (
+            (datetime.datetime.now() + datetime.timedelta(hours=24)).date(),
+            (datetime.datetime.now() + datetime.timedelta(hours=24))))
 
         return tasks_3 + tasks_2 + tasks_1 + tasks_0
 
@@ -366,6 +381,7 @@ class Planner:
         :param planned_duration: time planned for solving the task
         :return: output vector
         """
+        output_vector = []
         if real_duration == 0:
             output_vector = self.converter.user_to_model(
                 task_date=datetime.datetime(year=real_date.year,
@@ -386,6 +402,12 @@ class Planner:
                 duration=planned_duration,
                 offset=real_duration - planned_duration
             )
+        
+        result = []
+        for num in output_vector:
+            result.append(self.round_precision(num))
+        return tuple(result)
+            
         return output_vector
 
     def train_model(self, true_labels):
