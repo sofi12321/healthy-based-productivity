@@ -3,9 +3,9 @@ import pandas as pd
 import torch
 
 from torch import load
-import tensorflow as tf
-import tensorflow_hub as hub
-import tensorflow_text as text
+# import tensorflow as tf
+# import tensorflow_hub as hub
+# import tensorflow_text as text
 
 import re
 import gdown
@@ -14,12 +14,12 @@ import warnings
 
 from Model.sc_model import SC_LSTM
 from Data.converter import Converter
-from Data.Preprocessor import Preprocessor
+from Data_Test.Preprocessor import Preprocessor
 from tg_bot.domain.domain import Task, Event
 
 
 class Planner:
-    def __init__(self, alpha=1440):
+    def __init__(self, alpha=1440, beta=300):
         # TODO: All the parameters should be in configured after training
         self.scheduler = SC_LSTM(in_features=22,
                                  lstm_layers=1,
@@ -28,6 +28,9 @@ class Planner:
                                  out_features=3,
                                  batch_size=1,
                                  pred_interval=alpha)
+
+        self.alpha = alpha
+        self.beta = beta
 
         # Load model weights
         # TODO: UNCOMMENT THIS
@@ -40,45 +43,45 @@ class Planner:
         # self.nlp_model = self.nlp_load_model()
 
         # Set preprocessing objects
-        self.converter = Converter(alpha=alpha)
-        self.preprocessor = Preprocessor()
+        self.converter = Converter(alpha=alpha, beta=300)
+        self.preprocessor = Preprocessor(alpha=alpha, beta=300, num_lables=4, max_importance=5)        # alpha 24 hours, beta 5 hours
         # Initially all time slots are free
         self.available_time_slots = [[0, 1]]
 
-    def nlp_load_model(self):
-        """
-        Loading BERT-based task names classifier pretrained on the generated dataset
-
-        :return: model
-        """
-        # # Loading BERT-based task names classifier
-        # url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
-        # output = './model.json'
-        # gdown.download(url, output, quiet=False)
-        #
-        # # Loading weights of the classifier
-        # url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
-        # output = './model.h5'
-        # gdown.download(url, output, quiet=False)
-
-        # Build model
-        json_file = open('model.json', 'r')
-        loaded_model_json = json_file.read()
-        json_file.close()
-        loaded_model = tf.keras.models.model_from_json(
-            loaded_model_json,
-            custom_objects={'KerasLayer': hub.KerasLayer}
-        )
-        loaded_model.load_weights("model.h5")
-
-        # Compile model
-        loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-        metrics = tf.metrics.BinaryAccuracy()
-        optimizer = tf.keras.optimizers.AdamW(learning_rate=3e-5)
-        loaded_model.compile(optimizer=optimizer, loss=loss,
-                             metrics=metrics)
-
-        return loaded_model
+    # def nlp_load_model(self):
+    #     """
+    #     Loading BERT-based task names classifier pretrained on the generated dataset
+    #
+    #     :return: model
+    #     """
+    #     # # Loading BERT-based task names classifier
+    #     # url = 'https://drive.google.com/u/0/uc?id=1DR6YoPst1GflO85sU2dJ9ZZV3Qi2U4vz&export=download'
+    #     # output = './model.json'
+    #     # gdown.download(url, output, quiet=False)
+    #     #
+    #     # # Loading weights of the classifier
+    #     # url = 'https://drive.google.com/u/0/uc?id=1kJSDhD--EFLs8jiuBUOpVU66m2-gUf7V&export=download'
+    #     # output = './model.h5'
+    #     # gdown.download(url, output, quiet=False)
+    #
+    #     # Build model
+    #     json_file = open('model.json', 'r')
+    #     loaded_model_json = json_file.read()
+    #     json_file.close()
+    #     loaded_model = tf.keras.models.model_from_json(
+    #         loaded_model_json,
+    #         custom_objects={'KerasLayer': hub.KerasLayer}
+    #     )
+    #     loaded_model.load_weights("model.h5")
+    #
+    #     # Compile model
+    #     loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+    #     metrics = tf.metrics.BinaryAccuracy()
+    #     optimizer = tf.keras.optimizers.AdamW(learning_rate=3e-5)
+    #     loaded_model.compile(optimizer=optimizer, loss=loss,
+    #                          metrics=metrics)
+    #
+    #     return loaded_model
 
     def label_handling(self, task_name: str) -> int:
         """
@@ -139,12 +142,49 @@ class Planner:
         :param duration: [0,1] duration alpha-related
         :param time_slots: list of available slots
         """
+
+        duration
+
+        # get current time without date
+        now_time = datetime.datetime.now().time().replace(second=0, microsecond=0)
+
+        duration = duration / self.beta
+
+        # convert time to alpha-related
+        now_time = (now_time.hour * 60 + now_time.minute) / self.alpha
+
+        # Add current time to each element of time slots
+        time_slots = np.array(time_slots) + now_time
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         # print("dgjdkghkd", start_time, duration)
         for i in range(len(time_slots)):
-            # Should change start of the slot
-            if start_time < 0:
-                start_time = 0
-            elif start_time + duration > 1:
+            if start_time + duration > 1:
                 duration = start_time + duration - 1
             if time_slots[i][0] == start_time:
                 time_slots[i][0] += duration
@@ -180,22 +220,6 @@ class Planner:
             break
         return time_slots
 
-    def preprocess_event(self, event: Event, label: int, plan_time):
-        """
-        Processes the data about the task into the machine-understandable format.
-        :param plan_time: time when user call /plan
-        :param label: vector of category
-        :param event: object of class Task
-        :return:
-            - vector of input features describing given event,
-            - type of the event (non-resched),
-            - vector of output features describing given event,
-            - time when the event was planned by user
-        """
-        input_vector = self.preprocessor.preprocess_event(event, label, plan_time)
-        activity_type = "non-resched"
-
-        return input_vector, activity_type
 
     def sort_tasks(self, tasks):
         """
@@ -214,25 +238,6 @@ class Planner:
         tasks_3.sort(key=lambda x: (x.date, x.start_time))
 
         return tasks_3 + tasks_2 + tasks_1 + tasks_0
-
-    def preprocess_task(self, task: Task, label: int, plan_time):
-        """
-        Processes the data about the event into the machine-understandable format.
-
-        :param plan_time:
-        :param label: vector of category
-        :param task: object of class Task
-        :return:
-            - vector of input features describing given task,
-            - type of the task (resched),
-            - vector of output features describing given task (None for resched),
-            - time when the task was planned by user
-        """
-        # TODO: Yaroslav, план тайм добавить в обработку
-        input_vector = self.preprocessor.preprocess_task(task, label, plan_time)
-        activity_type = "resched"
-
-        return input_vector, activity_type
 
     def call_model(self, input_features, task_type, available_time_slots, user_h, user_c, plan_time):
         """
@@ -266,10 +271,10 @@ class Planner:
         new_h, new_c = self.scheduler.get_states()
 
         # TODO: DELETE THIS
-        print(f"Output prediction: {prediction}")
+        print(f"{task_type}  --->  Output prediction: {prediction}, {input_features}")
         
         # [[1,2,3]]
-        return prediction[0], new_h, new_c
+        return prediction, new_h, new_c
 
     def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
         """
@@ -321,9 +326,9 @@ class Planner:
             # TODO: UNCOMMENT PLUG
             label = 0
             # label = self.label_handling(event.event_name)
-            input_vector, activity_type = self.preprocess_event(event, label, plan_time)
+            input_vector = self.preprocessor.preprocess_data('non-resched', event, label)
             _, user_h, user_c = self.call_model(input_vector,
-                                                activity_type,
+                                                'non-resched',
                                                 self.available_time_slots,
                                                 user_h,
                                                 user_c,
@@ -337,11 +342,11 @@ class Planner:
             # TODO: UNCOMMENT PLUG
             label = 0
             # label = self.label_handling(task.task_name)
-            input_vector, activity_type = self.preprocess_task(task, label, plan_time)
+            input_vector = self.preprocessor.preprocess_data('resched', task, label)
 
             # start_time duration offset
             model_output, user_h, user_c = self.call_model(input_vector,
-                                                           activity_type,
+                                                           'resched',
                                                            self.available_time_slots,
                                                            user_h,
                                                            user_c,
@@ -488,7 +493,7 @@ if __name__ == '__main__':
     ]
     events = [
         Event(telegram_id=3, event_name="lesson_1",
-              start_time=datetime.time(15, 0), duration=90, date=datetime.datetime.now().date()),
+              start_time=datetime.time(21, 0), duration=90, date=datetime.datetime.now().date()),
         Event(telegram_id=5, event_name="lesson_2", duration=120, start_time=datetime.time(20, 20),
               date=datetime.datetime.now().date())
     ]

@@ -6,15 +6,23 @@ import numpy as np
 
 
 class Converter:
-    def __init__(self, alpha):
+    def __init__(self, alpha, beta):
         self.alpha = alpha
+        self.beta = beta
 
     def model_to_user(self, time, duration, offset,
                       current_date=datetime.now().replace(second=0, microsecond=0)):
-        max_time = current_date + timedelta(minutes=self.alpha)
-        task_date_user = time * (max_time - current_date) + current_date
-        duration_user = int((duration * (max_time - current_date)).total_seconds() / 60)
-        offset_user = int(offset * (max_time - current_date).total_seconds() / 60)
+
+        # set time to task date
+        hours = time * self.alpha // 60
+        minutes = round(time * self.alpha % 60)
+        task_date_user = current_date.replace(hour=hours, minute=minutes)
+
+        if task_date_user < current_date:
+            task_date_user += timedelta(days=1)
+
+        duration_user = round(duration * self.beta)
+        offset_user = round(offset * self.beta)
 
         # TODO: Uncomment only for debugging
         #         print("Current time:", current_date)

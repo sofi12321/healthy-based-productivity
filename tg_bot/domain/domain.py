@@ -20,6 +20,8 @@ class Task:
     predicted_offset: Optional[int] = None
     predicted_duration: Optional[int] = None
     predicted_date: Optional[datetime.date] = None
+    curr_date: datetime.date = datetime.datetime.now().date()
+    curr_time: datetime.time = datetime.datetime.now().time().replace(second=0, microsecond=0)
 
 
 @dataclass
@@ -42,3 +44,5 @@ class Event:
     repeat_number: int = 0
     event_id: Optional[int] = None
     was_scheduled: bool = False
+    curr_date: datetime.date = datetime.datetime.now().date()
+    curr_time: datetime.time = datetime.datetime.now().time().replace(second=0, microsecond=0)

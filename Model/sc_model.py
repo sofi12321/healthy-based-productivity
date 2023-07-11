@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from Data.converter import Converter as Conv
+from Data_Test.Convertors import out_to_features
 
 
 class SC_LSTM(nn.Module):
@@ -31,14 +31,14 @@ class SC_LSTM(nn.Module):
         self.hidden = hidden
         self.batch_size = batch_size
         self.train_mode = 'lstm'
-        self.pred_interval = pred_interval  # Prediction interval in minutes (24*60=1440)
+        self.alpha = pred_interval  # Prediction interval in minutes (24*60=1440)
+        self.beta = 300
         self.hn = None
         self.cn = None
         self.reset_states()     # Reset states of the model to zero while initialize
         self.__init_weights()   # Randomly initialize weights for all the layers
 
         # Objects declaration
-        self.converter = Conv(self.pred_interval)
         self.lstm = nn.LSTM(in_features, hidden, lstm_layers, batch_first=True)
         self.lstm_linear = nn.Linear(hidden, out_features)
         self.lstm_lin_activation = nn.Sigmoid()
@@ -76,13 +76,13 @@ class SC_LSTM(nn.Module):
             # If we need to train only lstm use lstm and linear layer
             if self.train_mode == "lstm":
                 out, (hn, cn) = self.lstm(x, (self.hn, self.cn))
+                out = self.lstm_linear(out)
+                out = self.lstm_lin_activation(out)
 
                 # Reinitialize hidden and cell states as new hn and cn by copying them
                 if save_states:
                     self.hn = hn.detach()
                     self.cn = cn.detach()
-                out = self.lstm_linear(out)
-                out = self.lstm_lin_activation(out)
                 return out
 
             # If we need to train only injector use injector and freezed pretrained linear
@@ -126,12 +126,12 @@ class SC_LSTM(nn.Module):
 
         # Create a coppy of free time slots
         free_time_slots = np.copy(free_time_slots)
-        if self.__check_overlay(out, free_time_slots):
+        if self.__check_overlay(x[0], out, free_time_slots):
             # Unpack torch tensors times into 3 variables and convert them to numpy
             start, duration, refr = out[0][0].item(), out[0][1].item(), out[0][2].item()
+            current_time = x[0][5].item()
 
-
-            print(f"Intermediary output: {out}")
+            # print(f"Intermediary output: {out}")
             total_duration = duration + refr
             mean_predict_pos = np.mean([start, start + total_duration])
 
@@ -159,19 +159,22 @@ class SC_LSTM(nn.Module):
             except ValueError:
                 return None
 
-            out = torch.tensor(([[best_time_slot[0], duration, refr]]))
+            out = torch.tensor(([[best_time_slot[0] + current_time, duration, refr]]))
 
             if save_states:
                 # Convert output (,3) and x (,11) to the input model format (,11)
-                new_x = self.converter.out_to_features(x, out, plan_time)
+                new_x = out_to_features(x[0], out[0])
+
+                new_x = new_x.unsqueeze(0)
+
                 self.__use_injector(new_x)
             return out
 
         # Save the states and return not modified output if it is feasible
         else:
             if save_states:
-                self.hn = hn_new.detach()
-                self.cn = cn_new.detach()
+                self.hn = hn_new.clone().detach()
+                self.cn = cn_new.clone().detach()
             return out
 
 
@@ -188,11 +191,11 @@ class SC_LSTM(nn.Module):
         _, (_, cn_new) = self.lstm(x, (self.hn, self.cn))
 
         # Set new injector substituted hidden and new cell state
-        self.hn = hn_new.detach()
-        self.cn = cn_new.detach()
+        self.hn = hn_new.clone().detach()
+        self.cn = cn_new.clone().detach()
 
 
-    def __check_overlay(self, times, free_time_slots):
+    def __check_overlay(self, X, times, free_time_slots):
         """
         This function checks if the scheduled task fit in available time slots.
         :param times: tuple of (start, end, refr) times of the scheduled task
@@ -200,11 +203,20 @@ class SC_LSTM(nn.Module):
             free time slots [[0.0, 0.02], [0.07, 0.2], ...]
         :return: True if there is an overlay, False otherwise
         """
+        X_new = X.clone().detach()
+        curr_time = X_new[5].item()
+
         # Unpack torch tensors times into 3 variables
         start = times[0][0].item()
-        duration = times[0][1].item()
+        if start < curr_time:
+            start += 1
+
+        duration = times[0][1].item() * self.beta / self.alpha
         refr = times[0][2].item()
         end = start + duration + refr
+
+        # Add current time to each of the value in the free time slots
+        free_time_slots = free_time_slots + curr_time
 
         # Check if the scheduled task fit in available time slots
         for time_slot in free_time_slots:
