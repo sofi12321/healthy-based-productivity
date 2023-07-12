@@ -97,25 +97,29 @@ class Planner:
         label = np.argmax(y_pred, axis=1)
         return label[0]
 
-    def set_available_time_slots(self, tasks, events):
+    def set_available_time_slots(self, user_start_time, user_end_time, plan_time, tasks, events):
         """
         Set available time slots based on the already scheduled events and tasks.
         :param tasks: list of objects Task, not all were scheduled
         :param events: list of objects Event, not all were scheduled
         """
         self.available_time_slots = [[0, 1]]
-        for event in events:
-            if event.was_scheduled:
-                self.update_available_time_slots_event(event)
-        for task in tasks:
-            if task.predicted_start:
-                task_output = self.convert_history_to_output(
-                    task.predicted_date,
-                    task.predicted_start,
-                    task.predicted_duration,
-                    task.predicted_duration + task.predicted_offset,
-                )
-                self.update_available_time_slots_task(task_output)
+        start = datetime.datetime.combine(plan_time.date(), user_start_time) - plan_time
+        end = datetime.datetime.combine(plan_time.date(), user_end_time) - plan_time
+
+        if start < datetime.timedelta(days=0):
+            start += datetime.timedelta(hours=24)
+        if end < datetime.timedelta(days=0):
+            end += datetime.timedelta(hours=24)
+
+        start = start.total_seconds() / 60 / 60 / 24
+        end = end.total_seconds() / 60 / 60 / 24
+
+        if start >= end:
+            self.update_available_time_slots_task((end, start - end, 0))
+        else:
+            self.update_available_time_slots_task((0, start, 0))
+            self.update_available_time_slots_task((end, 1 - end, 0))
     
     def round_precision(self, num, precision=4):
         precision = 10**4
@@ -349,7 +353,7 @@ class Planner:
         # tasks = [Task, Task, Task, ...]
         # events = [Event, Event, Event, ...]
         resulted_schedule = []
-        self.set_available_time_slots(tasks, events)
+        self.set_available_time_slots(user_start_time, user_end_time, tasks, events)
 
         # Keep only those tasks that were not scheduled before
         tasks_new, events_new = [], []
