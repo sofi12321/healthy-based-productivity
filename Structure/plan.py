@@ -120,6 +120,16 @@ class Planner:
         else:
             self.update_available_time_slots_task((0, start, 0))
             self.update_available_time_slots_task((end, 1 - end, 0))
+                for event in events:
+            if event.was_scheduled:
+                self.update_available_time_slots_event(event)
+                
+        for task in tasks:
+            if task.predicted_start:
+                task_output = self.convert_history_to_output(task.predicted_date, task.predicted_start,
+                                                             task.predicted_duration,
+                                                             task.predicted_duration + task.predicted_offset)
+                self.update_available_time_slots_task(task_output)
     
     def round_precision(self, num, precision=4):
         precision = 10**4
