@@ -120,7 +120,8 @@ class Planner:
         else:
             self.update_available_time_slots_task((0, start, 0))
             self.update_available_time_slots_task((end, 1 - end, 0))
-                for event in events:
+
+        for event in events:
             if event.was_scheduled:
                 self.update_available_time_slots_event(event)
                 
@@ -363,7 +364,7 @@ class Planner:
         # tasks = [Task, Task, Task, ...]
         # events = [Event, Event, Event, ...]
         resulted_schedule = []
-        self.set_available_time_slots(user_start_time, user_end_time, tasks, events)
+        self.set_available_time_slots(user_start_time, user_end_time, plan_time, tasks, events)
 
         # Keep only those tasks that were not scheduled before
         tasks_new, events_new = [], []
@@ -407,44 +408,44 @@ class Planner:
             self.update_available_time_slots_task(model_output)
 
         return resulted_schedule, user_h, user_c
-def convert_history_to_output(self, real_date: datetime.date, real_start_time: datetime.time, real_duration: int,
-                                  planned_duration: int):
-        """
-        Reformat user feedback about task completion to vector relative data (start time and offset).
-        If duration == 0, then the task was not completed.
+    def convert_history_to_output(self, real_date: datetime.date, real_start_time: datetime.time, real_duration: int,
+                                      planned_duration: int):
+            """
+            Reformat user feedback about task completion to vector relative data (start time and offset).
+            If duration == 0, then the task was not completed.
 
-        :param real_date: date when the user performed the task
-        :param real_start_time: time when the user started to perform the task
-        :param real_duration: time during which the user performed the task
-        :param planned_duration: time planned for solving the task
-        :return: output vector
-        """
-        output_vector = []
-        if real_duration == 0:
-            output_vector = self.converter.user_to_model(
-                task_date=datetime.datetime(year=real_date.year,
-                                            month=real_date.month,
-                                            day=real_date.day,
-                                            hour=real_start_time.hour,
-                                            minute=real_start_time.minute),
-                duration=0,
-                offset=0
-            )
-        else:
-            output_vector = self.converter.user_to_model(
-                task_date=datetime.datetime(year=real_date.year,
-                                            month=real_date.month,
-                                            day=real_date.day,
-                                            hour=real_start_time.hour,
-                                            minute=real_start_time.minute),
-                duration=planned_duration,
-                offset=real_duration - planned_duration
-            )
-        
-        result = []
-        for num in output_vector:
-            result.append(self.round_precision(num))
-        return tuple(result)
+            :param real_date: date when the user performed the task
+            :param real_start_time: time when the user started to perform the task
+            :param real_duration: time during which the user performed the task
+            :param planned_duration: time planned for solving the task
+            :return: output vector
+            """
+            output_vector = []
+            if real_duration == 0:
+                output_vector = self.converter.user_to_model(
+                    task_date=datetime.datetime(year=real_date.year,
+                                                month=real_date.month,
+                                                day=real_date.day,
+                                                hour=real_start_time.hour,
+                                                minute=real_start_time.minute),
+                    duration=0,
+                    offset=0
+                )
+            else:
+                output_vector = self.converter.user_to_model(
+                    task_date=datetime.datetime(year=real_date.year,
+                                                month=real_date.month,
+                                                day=real_date.day,
+                                                hour=real_start_time.hour,
+                                                minute=real_start_time.minute),
+                    duration=planned_duration,
+                    offset=real_duration - planned_duration
+                )
+
+            result = []
+            for num in output_vector:
+                result.append(self.round_precision(num))
+            return tuple(result)
                                       
     def train_model(self, true_labels):
         """
@@ -488,59 +489,64 @@ def convert_history_to_output(self, real_date: datetime.date, real_start_time: d
         order = {}
         for task in tasks:
             if task.predicted_start:
-                order[task.predicted_start] = ["task", task]
+                if task.predicted_start not in order.keys():
+                    order[task.predicted_start] = []
+                order[task.predicted_start].append(["task", task])
             else:
                 tasks_not_done.append(task)
         for event in events:
             if not event.was_scheduled:
                 flag_plan = True
-            order[event.start_time] = ["event", event]
+            if event.start_time not in order.keys():
+                order[event.start_time] = []
+            order[event.start_time].append(["event", event])
         sorted_order = sorted(order.keys())
 
         for t in sorted_order:
-            output_task = ""
-            if order[t][0] == "event":
-                output_task = re.sub("SMILE", smiles[-1], base)
-                output_task = re.sub("NAME", order[t][1].event_name, output_task)
-                output_task = re.sub(
-                    "START", order[t][1].start_time.strftime("%H:%M"), output_task
-                )
-                output_task = re.sub(
-                    "END",
-                    (
-                        datetime.datetime.combine(
-                            order[t][1].date, order[t][1].start_time
-                        )
-                        + datetime.timedelta(minutes=order[t][1].duration)
-                    ).strftime("%H:%M"),
-                    output_task,
-                )
-
-            elif order[t][0] == "task":
-                output_task = re.sub(
-                    "SMILE", smiles[self.label_handling(order[t][1].task_name)], base
-                )
-                output_task = re.sub("NAME", order[t][1].task_name, output_task)
-                output_task = re.sub(
-                    "START", order[t][1].predicted_start.strftime("%H:%M"), output_task
-                )
-                output_task = re.sub(
-                    "END",
-                    (
-                        datetime.datetime.combine(
-                            order[t][1].predicted_date, order[t][1].predicted_start
-                        )
-                        + datetime.timedelta(minutes=order[t][1].predicted_duration)
-                    ).strftime("%H:%M"),
-                    output_task,
-                )
-
-                if order[t][1].predicted_offset >= 1:
-                    output_task += re.sub(
-                        "ADD_MIN", str(int(order[t][1].predicted_offset)), additional
+            for item in order[t]:
+                output_task = ""
+                if item[0] == "event":
+                    output_task = re.sub("SMILE", smiles[-1], base)
+                    output_task = re.sub("NAME", item[1].event_name, output_task)
+                    output_task = re.sub(
+                        "START", item[1].start_time.strftime("%H:%M"), output_task
                     )
-            output_task += final
-            output_schedule += output_task
+                    output_task = re.sub(
+                        "END",
+                        (
+                            datetime.datetime.combine(
+                                item[1].date, item[1].start_time
+                            )
+                            + datetime.timedelta(minutes=item[1].duration)
+                        ).strftime("%H:%M"),
+                        output_task,
+                    )
+
+                elif item[0] == "task":
+                    output_task = re.sub(
+                        "SMILE", smiles[self.label_handling(item[1].task_name)], base
+                    )
+                    output_task = re.sub("NAME", item[1].task_name, output_task)
+                    output_task = re.sub(
+                        "START", item[1].predicted_start.strftime("%H:%M"), output_task
+                    )
+                    output_task = re.sub(
+                        "END",
+                        (
+                            datetime.datetime.combine(
+                                item[1].predicted_date, item[1].predicted_start
+                            )
+                            + datetime.timedelta(minutes=item[1].predicted_duration)
+                        ).strftime("%H:%M"),
+                        output_task,
+                    )
+
+                    if item[1].predicted_offset >= 1:
+                        output_task += re.sub(
+                            "ADD_MIN", str(int(item[1].predicted_offset)), additional
+                        )
+                output_task += final
+                output_schedule += output_task
 
         if flag_plan:
             if len(tasks_not_done) > 0:
