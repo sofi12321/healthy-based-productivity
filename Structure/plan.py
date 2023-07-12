@@ -150,6 +150,7 @@ class Planner:
         :param time_slots: list of available slots
         """
         start_time, duration = self.round_precision(start_time), self.round_precision(duration)
+
         for i in range(len(time_slots)):
             # Should change start of the slot
             if start_time < 0:
@@ -293,12 +294,12 @@ class Planner:
         # TODO: DELETE THIS
         print(f"Output prediction: {prediction}")
 
-        if prediction == None:
+        if prediction is None:
             return None, new_h, new_c
 
         # Prediction format is [[1,2,3]]
         else:
-            return prediction[0], new_h, new_c
+            return prediction[0].numpy(), new_h, new_c
 
     def convert_output_to_schedule(self, task_id: int, prediction, plan_time):
         """
@@ -389,13 +390,8 @@ class Planner:
 
         return resulted_schedule, user_h, user_c
 
-    def convert_history_to_output(
-        self,
-        real_date: datetime.date,
-        real_start_time: datetime.time,
-        real_duration: int,
-        planned_duration: int,
-    ):
+    def convert_history_to_output(self, real_date: datetime.date, real_start_time: datetime.time, real_duration: int,
+                                  planned_duration: int):
         """
         Reformat user feedback about task completion to vector relative data (start time and offset).
         If duration == 0, then the task was not completed.
@@ -409,35 +405,30 @@ class Planner:
         output_vector = []
         if real_duration == 0:
             output_vector = self.converter.user_to_model(
-                task_date=datetime.datetime(
-                    year=real_date.year,
-                    month=real_date.month,
-                    day=real_date.day,
-                    hour=real_start_time.hour,
-                    minute=real_start_time.minute,
-                ),
+                task_date=datetime.datetime(year=real_date.year,
+                                            month=real_date.month,
+                                            day=real_date.day,
+                                            hour=real_start_time.hour,
+                                            minute=real_start_time.minute),
                 duration=0,
-                offset=0,
+                offset=0
             )
         else:
             output_vector = self.converter.user_to_model(
-                task_date=datetime.datetime(
-                    year=real_date.year,
-                    month=real_date.month,
-                    day=real_date.day,
-                    hour=real_start_time.hour,
-                    minute=real_start_time.minute,
-                ),
+                task_date=datetime.datetime(year=real_date.year,
+                                            month=real_date.month,
+                                            day=real_date.day,
+                                            hour=real_start_time.hour,
+                                            minute=real_start_time.minute),
                 duration=planned_duration,
-                offset=real_duration - planned_duration,
+                offset=real_duration - planned_duration
             )
 
         result = []
         for num in output_vector:
             result.append(self.round_precision(num))
         return tuple(result)
-
-        return output_vector
+        # return output_vector
 
     def train_model(self, true_labels):
         """

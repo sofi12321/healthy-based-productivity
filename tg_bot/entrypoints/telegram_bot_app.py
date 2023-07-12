@@ -199,18 +199,28 @@ async def plan_new_schedule(message: Message, state: FSMContext):
         message.from_id, ALPHA, current_time.date(), current_time.time()
     )
 
-    tasks = list(
-        filter(
-            lambda task: task.predicted_start is None and task.is_done is False, tasks
-        )
-    )
-    events = list(filter(lambda event: event.was_scheduled is False, events))
+    # tasks = list(
+    #     filter(
+    #         lambda task: task.predicted_start is None and task.is_done is False, tasks
+    #     )
+    # )
+    # events = list(filter(lambda event: event.was_scheduled is False, events))
 
     """Sending to model"""
 
     new_schedule, user_h, user_c = PLANNER.get_model_schedule(
-        tasks, events, user_history, user_context, user_start_time=user.start_time, user_end_time=user.end_time, plan_time=current_time
+        tasks, events, user_history, user_context, user_start_time=user.start_time, user_end_time=user.end_time, plan_time=current_time.replace(second=0, microsecond=0)
     )
+
+    """Saving user context and history"""
+
+    try:
+        user.context = numpy_to_string(user_c.numpy())
+        user.history = numpy_to_string(user_h.numpy())
+        user_repo.add_user(user)
+    except Exception as e:
+        logging.error(get_lexicon_with_argument('error', e.args))
+        await message.answer(lexicon['en']['retry_trouble'])
 
     """Gathering and saving generated information"""
 
@@ -474,8 +484,8 @@ async def get_task_start_time(message: Message, state: FSMContext):
     message_text = message.text
 
     if message_text.strip().lower() == "no":
-        await state.set_state(GetTaskInfo.TaskDateState)
-        await message.answer(lexicon["en"]["get_date_task"])
+        await state.set_state(GetTaskInfo.TaskDurationState)
+        await message.answer(lexicon["en"]["get_duration_task"])
         return
 
     result = parse_time(message_text)

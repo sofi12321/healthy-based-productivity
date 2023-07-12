@@ -136,7 +136,7 @@ class SC_LSTM(nn.Module):
             start, duration, refr = out[0][0].item(), out[0][1].item(), out[0][2].item()
 
 
-            print(f"Intermediary output: {out}")
+            # print(f"Intermediary output: {out}")
             total_duration = duration + refr
             mean_predict_pos = np.mean([start, start + total_duration])
 
