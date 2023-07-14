@@ -1,6 +1,14 @@
-# Healthy Based Productivity Scheduler
+# **InnoPlan bot**
 
-Welcome to the Healthy Productivity Bot repository on GitHub! This repository contains the code for a Telegram bot with a neural network model using custom LSTM-based architecture. The bot is designed to suggest and even automatically plan tasks, as well as create an optimal schedule based on a user's activity.
+According to research of hh.ru and AIBY*, every second respondent felt burned out. The main reasons were emotional exhaustion and a busy schedule, lack of time for work and personal tasks. The reason could be an “idealized” planning - when a person is too optimistic in estimating the task duration, taking no breaks or overloading the schedule.
+
+<p align="center">
+    <img width="200" src="/static/logo.png" alt="InnoPlan logo">
+</p>
+
+The solution is the **InnoPlan bot** by Healthy Based Productivity startup. It's a chatbot in Telegram that builds a realistic schedule of user tasks. Unlike other autoschedulers, our solution is *personalized* because we build a plan based on a person's *activity history*.
+
+This solution is not yet on the market, be one of the first who will try it! [Link to our chatbot @InnoPlan_bot](https://t.me/Innoplan_bot).
 
 ## Table of Contents
 
@@ -12,28 +20,35 @@ Welcome to the Healthy Productivity Bot repository on GitHub! This repository co
 
 ## Getting Started
 
-The Healthy Productivity Bot is built to help individuals boost their productivity while prioritizing their health and wellbeing. By analyzing user activity and utilizing a neural network model with memory, the bot assists in suggesting tasks and creating an optimized schedule tailored to each user's needs.
+InnoPlan bot is created to make the schedule similar to the daily workflow of a person. It uses the history of completed tasks to predict the best schedule for today. 
+Our product offers the opportunity to optimize a person's schedule based on his or her activity history.
+Let's consider an example where the user systematically estimates his or her capabilities too optimistically and allocates less time to tasks than he or she actually spends on them. In this case, the system notes this issue and generates a more objective schedule for the day. The ability to create a schedule based on activity history is an innovation of our project.
+The project implementation is a chatbot in Telegram. In it, users will be able to work with the list of tasks and events - add, delete and mark their completion and receive the generated day schedule.
+
+Our project offers many benefits to users, such as
+* avoiding mistakes made by people in the planning process;
+* saving time, as there is no need to analyze and schedule schedules yourself;
+* improved wellness due to the absence of worries about failed plans.
 
 ## Features
-
-1. Task Suggestion: The bot uses the LSTM model to suggest tasks based on previous user activity and personal preferences. These suggestions align with the user's goals, helping them focus on productive and healthy tasks.
-2. Task Planning: Users have the option to let the bot automatically plan out their daily, weekly, or even monthly tasks. The bot considers priority, time required, and other factors to create an efficient and well-balanced schedule.
-3. Optimal Schedule Creation: By leveraging the neural network model, the bot generates an optimal schedule that balances work, breaks, exercise, and other activities. This ensures users maintain a healthy work-life balance and make the most of their time.
-4. Personalization: The bot takes into account user preferences and learns from previous interactions to provide tailored suggestions and scheduling. Over time, it optimizes its recommendations, making the user experience more relevant and effective.
+1. Personalization - the system predicts the best time parameters for the task based on user activity history.
+2. Tasks names may be written in Natural languge. The system classify them into 4 categories: Sport, Passive Rest, Daily Routine, Study&Work.
+3. All tasks are stored in the database, so users can plan their day later.
+4. User 
 
 ## Setup Instructions
 
 To set up the Healthy Productivity Bot locally, please follow the instructions below:
 
 1. Clone this repository to your local machine using the command:
-
+```
 git clone https://github.com/sofi12321/healthy-based-productivity
-
+```
 
 2. Install the required dependencies by running the following command:
-
+```
 pip install -r requirements.txt
-
+```
 
 3. Obtain the necessary API keys and tokens:
 
