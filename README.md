@@ -27,7 +27,7 @@ To set up the Healthy Productivity Bot locally, please follow the instructions b
 
 1. Clone this repository to your local machine using the command:
 
-git clone https://github.com/your-username/healthy-based-productivity.git
+git clone https://github.com/sofi12321/healthy-based-productivity
 
 
 2. Install the required dependencies by running the following command:
