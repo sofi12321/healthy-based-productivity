@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import datetime
 import random
-from sklearn.preprocessing import MinMaxScaler
 from Data.converter import Converter
 import calendar
 
@@ -13,11 +12,10 @@ class Preprocessor:
         Preprocessor for generated data
         """
         self.converter = Converter(alpha=1440)
-        self.duration_scaler = MinMaxScaler()
 
     def _encode(self, data, column_name, num_labels=4):
         """
-        Encodes feature
+        Encodes feature with one-hot encoding
         :param data: dataframe with feature to encode
         :param column_name: name of column to encode
         :param num_labels: number of labels
@@ -42,11 +40,8 @@ class Preprocessor:
         :return: dataframe with transformed features
         """
         transformed_data = data.copy()
-        # new_columns = [
-        #     'Time_Min_sin', 'Time_Min_cos', 'Date_Day_sin', 'Date_Day_cos', 'Date_Month_sin', 'Date_Month_cos',
-        #     'Plan_Time_Min_sin', 'Plan_Time_Min_cos', 'Plan_Date_Day_sin', 'Plan_Date_Day_cos', 'Plan_Date_Month_sin',
-        #     'Plan_Date_Month_cos'
-        # ]
+
+        # Add new columns for transformed features
         new_columns = [
             'Time_Min_sin', 'Time_Min_cos', 'Date_Day_sin', 'Date_Day_cos', 'Date_Month_sin', 'Date_Month_cos']
         for column in new_columns:
@@ -61,9 +56,6 @@ class Preprocessor:
                 start_date = datetime.datetime.now()
             num_days_start = calendar.monthrange(start_date.year, start_date.month)[1]
 
-            # Get the number of days in the month of the provided date when the activity was planned by user
-            num_days_plan = calendar.monthrange(plan_date.year, plan_date.month)[1]
-
             # Transform Time_Min feature
             transformed_data.loc[i, 'Time_Min_sin'] = np.sin(2 * np.pi * data['Time_Min'][i] / 1440)
             transformed_data.loc[i, 'Time_Min_cos'] = np.cos(2 * np.pi * data['Time_Min'][i] / 1440)
@@ -76,20 +68,7 @@ class Preprocessor:
             transformed_data.loc[i, 'Date_Month_sin'] = np.sin(2 * np.pi * data['Date_Month'][i] / 12)
             transformed_data.loc[i, 'Date_Month_cos'] = np.cos(2 * np.pi * data['Date_Month'][i] / 12)
 
-            # Transform Plan_Time_Min feature
-            # transformed_data.loc[i, 'Plan_Time_Min_sin'] = np.sin(2 * np.pi * data['Plan_Time_Min'][i] / 1440)
-            # transformed_data.loc[i, 'Plan_Time_Min_cos'] = np.cos(2 * np.pi * data['Plan_Time_Min'][i] / 1440)
-            #
-            # # Transform Plan_Date_Day feature
-            # transformed_data.loc[i, 'Plan_Date_Day_sin'] = np.sin(2 * np.pi * data['Plan_Date_Day'][i] / num_days_plan)
-            # transformed_data.loc[i, 'Plan_Date_Day_cos'] = np.cos(2 * np.pi * data['Plan_Date_Day'][i] / num_days_plan)
-            #
-            # # Transform Plan_Date_Month feature
-            # transformed_data.loc[i, 'Plan_Date_Month_sin'] = np.sin(2 * np.pi * data['Plan_Date_Month'][i] / 12)
-            # transformed_data.loc[i, 'Plan_Date_Month_cos'] = np.cos(2 * np.pi * data['Plan_Date_Month'][i] / 12)
-
-        # Drop old features except Time_Min and Plan_Time_Min because it is used as feature for model
-        # transformed_data.drop(columns=['Date_Day', 'Date_Month', 'Plan_Date_Day', 'Plan_Date_Month'], inplace=True)
+        # Drop old features except Time_Min because it is used as feature for model
         transformed_data.drop(columns=['Date_Day', 'Date_Month'], inplace=True)
 
         return transformed_data
@@ -195,41 +174,20 @@ class Preprocessor:
             )
             input_vector.loc[i, 'Time_Min'] = (task_date - current_date) / (max_time - current_date)
 
-        # input_vector['Plan_Time_Min'] = input_vector['Plan_Date'].dt.minute + input_vector['Plan_Date'].dt.hour * 60
-        # input_vector['Plan_Date_Categorical'] = input_vector['Plan_Date'].dt.strftime("%j").astype(int)
-        # input_vector['Plan_Date_Day'] = input_vector['Plan_Date'].dt.day
-        # input_vector['Plan_Date_Month'] = input_vector['Plan_Date'].dt.month
-
         # Encode label number
         input_vector = self._encode(input_vector, "Label Number")
 
-        # Update scaler for Duration and then scale Duration
-        # self.duration_scaler.partial_fit(input_vector['Duration'].values.reshape(-1, 1))
-        # input_vector['Duration'] = self.duration_scaler.transform(input_vector['Duration'].values.reshape(-1, 1))
+        # Scale Duration assuming that duration does not exceed 240 minutes
         input_vector['Duration'] = input_vector['Duration'] / 240
 
-        # Scale Time_Min, Date_Categorical, Plan_Time_Min, Plan_Date_Categorical, Importance
-        # input_vector['Time_Min'] = input_vector['Time_Min'] / 1440
+        # Scale Time_Min and Importance
         input_vector['Date_Categorical'] = input_vector['Date_Categorical'] / 365
-        # input_vector['Plan_Time_Min'] = input_vector['Plan_Time_Min'] / 1440
-        # input_vector['Plan_Date_Categorical'] = input_vector['Plan_Date_Categorical'] / 365
-        input_vector['Importance'] = input_vector['Importance'] / 4
+        input_vector['Importance'] = input_vector['Importance'] / 3
 
         # Drop unnecessary columns
         input_vector.drop(columns=['Date', 'Start Time', 'Plan_Date'], inplace=True)
 
         # Rearrange columns of input vector
-        # input_vector = input_vector[['Label Number_0', 'Label Number_1', 'Label Number_2', 'Label Number_3',
-        #                              'Duration',
-        #                              'Importance',
-        #                              'Time_Min', 'Time_Min_sin', 'Time_Min_cos',
-        #                              'Date_Categorical',
-        #                              'Date_Day_sin', 'Date_Day_cos',
-        #                              'Date_Month_sin', 'Date_Month_cos',
-        #                              'Plan_Time_Min', 'Plan_Time_Min_sin', 'Plan_Time_Min_cos',
-        #                              'Plan_Date_Categorical',
-        #                              'Plan_Date_Day_sin', 'Plan_Date_Day_cos',
-        #                              'Plan_Date_Month_sin', 'Plan_Date_Month_cos']]
         input_vector = input_vector[['Label Number_0', 'Label Number_1', 'Label Number_2', 'Label Number_3',
                                      'Duration',
                                      'Importance',
